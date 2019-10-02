@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<package>
+
+    <name>iris_lama</name>
+    <version>1.0.0</version>
+    <description>
+        IRIS package for Localization and Mapping (LaMa).
+        This packages includes the sparse-dense library for grid mapping,
+        a 2D localization algorithm based on scan matching, an only SLAM solution
+        with a dynamic likelihood field and a 2D RB Particle Filter SLAM solution
+        with multithreading.
+    </description>
+
+    <author     email="efp@ua.pt">Eurico Pedrosa</author>
+    <maintainer email="efp@ua.pt">Eurico Pedrosa</maintainer>
+
+    <license>BSD</license>
+
+    <buildtool_depend>cmake</buildtool_depend>
+
+    <build_depend>Eigen3</build_depend>
+
+    <export />
+
+</package>
