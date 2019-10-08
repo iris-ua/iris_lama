@@ -199,7 +199,7 @@ uint32_t lama::DynamicDistanceMap::update()
     uint32_t number_of_proccessed_cells = 0;
 
     while (not raise_.empty()){
-        Vector3ui location  = raise_.pop();
+        Vector3ui location  = raise_.top().second; raise_.pop();
         distance_t* current = (distance_t*) get(location);
 
         if(current == 0)
@@ -211,7 +211,7 @@ uint32_t lama::DynamicDistanceMap::update()
     }// end while
 
     while (not lower_.empty()){
-        Vector3ui location  = lower_.pop();
+        Vector3ui location  = lower_.top().second; lower_.pop();
         distance_t* current = (distance_t*)get(location);
 
         ++number_of_proccessed_cells;
@@ -258,7 +258,7 @@ void lama::DynamicDistanceMap::addObstacle(const Vector3ui& location)
     cell->valid_obstacle = true;
     cell->is_queued      = true;
 
-    lower_.push(0, location);
+    lower_.push({0, location});
 }
 
 void lama::DynamicDistanceMap::removeObstacle(const Vector3ui& location)
@@ -274,7 +274,7 @@ void lama::DynamicDistanceMap::removeObstacle(const Vector3ui& location)
     cell->valid_obstacle = false;
     cell->is_queued      = true;
 
-    raise_.push(0, location);
+    raise_.push({0, location});
 }
 
 void lama::DynamicDistanceMap::raise(const Vector3ui& location, distance_t& current)
@@ -299,13 +299,13 @@ void lama::DynamicDistanceMap::raise(const Vector3ui& location, distance_t& curr
 
         // verify if the closest point is no longer an obstacle.
         if (not obstacle->sqdist == 0){
-            raise_.push(neighbor->sqdist, newloc);
+            raise_.push({neighbor->sqdist, newloc});
 
             neighbor->obstacle       = current.obstacle;
             neighbor->valid_obstacle = false;
             neighbor->is_queued      = true;
         }else if(not neighbor->is_queued){
-            lower_.push(neighbor->sqdist, newloc);
+            lower_.push({neighbor->sqdist, newloc});
 
             neighbor->is_queued = true;
         }
@@ -349,7 +349,7 @@ void lama::DynamicDistanceMap::lower(const Vector3ui& location, distance_t& curr
         }
 
         if ( overwrite ){
-            lower_.push(new_sqdist, newloc);
+            lower_.push({new_sqdist, newloc});
 
             neighbor->sqdist         = new_sqdist;
             neighbor->valid_obstacle = true;

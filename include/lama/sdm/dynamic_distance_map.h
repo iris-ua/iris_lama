@@ -33,7 +33,8 @@
 
 #pragma once
 
-#include "lama/priority_queue.h"
+#include <queue>
+
 #include "distance_map.h"
 
 namespace lama {
@@ -86,8 +87,18 @@ private:
 
 private:
 
-    PriorityQueue<Vector3ui> lower_;
-    PriorityQueue<Vector3ui> raise_;
+    typedef std::pair<int, Vector3ui> queue_pair_t;
+
+    struct compare_prio {
+        inline bool operator()(const queue_pair_t& left, const queue_pair_t& right)
+        { return left.first > right.first; }
+    };
+
+    typedef std::priority_queue<queue_pair_t,
+            std::vector<queue_pair_t>, compare_prio> queue_t;
+
+    queue_t lower_;
+    queue_t raise_;
 
     int deltas_[26][3];
     uint32_t max_sqdist_;
