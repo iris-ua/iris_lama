@@ -33,7 +33,7 @@
 
 #pragma once
 
-#include "lama/priority_queue.h"
+#include <queue>
 #include "distance_map.h"
 
 namespace lama {
@@ -86,8 +86,24 @@ private:
 
 private:
 
-    PriorityQueue<Vector3ui> lower_;
-    PriorityQueue<Vector3ui> raise_;
+    struct PriorityVector
+    {
+        int priority;
+        Vector3ui vector;
+
+        bool operator>(const PriorityVector& other) const
+        {
+          return priority > other.priority;
+        }
+        bool operator<(const PriorityVector& other) const
+        {
+          return priority < other.priority;
+        }
+    };
+
+    using PriorityQueue = std::priority_queue<PriorityVector, std::vector<PriorityVector>, std::greater<PriorityVector>>;
+    PriorityQueue lower_;
+    PriorityQueue raise_;
 
     int deltas_[26][3];
     uint32_t max_sqdist_;
