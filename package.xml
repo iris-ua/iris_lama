@@ -18,7 +18,8 @@
 
     <buildtool_depend>cmake</buildtool_depend>
 
-    <build_depend>Eigen3</build_depend>
+    <build_depend>eigen</build_depend>
+    <run_depend>eigen</run_depend>
 
     <export />
 
