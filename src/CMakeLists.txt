@@ -28,7 +28,6 @@ set(lama_SOURCES
     extern/zstd/pool.c
     extern/zstd/zstd_common.c
     extern/zstd/error_private.c
-    extern/zstd/xxhash.c
     extern/zstd/debug.c
     extern/zstd/fse_compress.c
     extern/zstd/huf_compress.c

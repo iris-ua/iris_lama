@@ -91,6 +91,7 @@ typedef enum { XXH_OK=0, XXH_ERROR } XXH_errorcode;
 *   `xxhash.c` is automatically included.
 *   It's not useful to compile and link it as a separate module anymore.
 */
+#define XXH_PRIVATE_API
 #ifdef XXH_PRIVATE_API
 #  ifndef XXH_STATIC_LINKING_ONLY
 #    define XXH_STATIC_LINKING_ONLY
