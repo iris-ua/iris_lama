@@ -31,6 +31,7 @@
  *
  */
 
+#include "lama/print.h"
 #include "lama/image.h"
 #include "lama/image_io.h"
 
@@ -38,6 +39,7 @@
 
 #include "lama/sdm/occupancy_map.h"
 #include "lama/sdm/distance_map.h"
+#include "lama/sdm/truncated_signed_distance_map.h"
 
 namespace {
 
@@ -106,4 +108,38 @@ bool lama::sdm::export_to_png(const DistanceMap& dm, const std::string& filename
     build_image(dm, image, zed);
     return image_write_png(image, filename);
 }
+
+bool lama::sdm::export_to_ply(const TruncatedSignedDistanceMap& tsdm, const std::string& filename)
+{
+    std::ofstream out(filename.c_str());
+    if (not out){
+        print("Cannot open file '%s'\n", filename.c_str());
+        return false;
+    }
+
+    PolygonMesh mesh;
+    tsdm.toMesh(mesh);
+
+    const size_t num_vertices = mesh.vertex.size();
+    // PLY header
+    out << "ply" << std::endl
+        << "format ascii 1.0" << std::endl
+        << "element vertex "  << num_vertices << std::endl
+        << "property float x" << std::endl
+        << "property float y" << std::endl
+        << "property float z" << std::endl
+        << "element face "    << num_vertices / 3 << std::endl
+        << "property list uchar int vertex_index" << std::endl
+        << "end_header" << std::endl;
+
+    for (auto& vertex : mesh.vertex)
+        out << format("%f %f %f", vertex[0], vertex[1], vertex[2]) << std::endl;
+
+    for (size_t i = 0; i < mesh.index.size(); i += 3)
+        out << format("3 %d %d %d", mesh.index[i+2], mesh.index[i+1], mesh.index[i])
+            << std::endl;
+
+    return true;
+}
+
 

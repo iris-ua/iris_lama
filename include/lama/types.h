@@ -37,6 +37,7 @@
 
 #include <memory>
 #include <vector>
+#include <array>
 #include <deque>
 #include <list>
 #include <map>
@@ -75,6 +76,9 @@ using LinkedList = std::list<T>;
 template<class T>
 using DynamicArray = std::vector<T>;
 
+template<class T, std::size_t N>
+using Array = std::array<T, N>;
+
 template<class Key, class T>
 using Dictionary = std::map<Key, T>;
 
@@ -92,7 +96,6 @@ struct KeyHash {
 };
 typedef std::unordered_set<Vector3ui, KeyHash> KeySet;
 
-
 struct PointCloudXYZ {
     typedef std::shared_ptr<PointCloudXYZ> Ptr;
 
@@ -100,6 +103,13 @@ struct PointCloudXYZ {
 
     Vector3d    sensor_origin_;
     Quaterniond sensor_orientation_;
+};
+
+struct PolygonMesh {
+    List<Vector3f> vertex;
+    List<Vector3f> normal;
+    List<Vector3f> color;
+    List<uint32_t> index;
 };
 
 } /* lama */

@@ -33,19 +33,15 @@
 
 #pragma once
 
-#include "lama/priority_queue.h"
-
 #include "distance_map.h"
 
 namespace lama {
 
-/**
- * Truncated Signed Distance Map.
- */
-class TruncatedSignedDistanceMap : public DistanceMap {
-public:
+/// Truncated Signed Distance Map.
+/// This can be used to generate 3D volume representions of the environment.
+struct TruncatedSignedDistanceMap : public DistanceMap {
 
-    struct truncated_signed_distance_t {
+    struct tsd_t {
         float distance;
         float weight;
     };
@@ -62,6 +58,8 @@ public:
 
     void setMaxDistance(double distance);
     double maxDistance() const;
+
+    void toMesh(PolygonMesh& mesh) const;
 
 private:
 

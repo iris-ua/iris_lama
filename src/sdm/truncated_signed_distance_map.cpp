@@ -1,17 +1,41 @@
-//
-// Copyright (c) 2018, IRIS Laboratory, IEETA, University of Aveiro - Portugal
-//
-// @date    2018-10-30
-// @authors Eurico Pedrosa <efp@ua.pt>
-//
+/*
+ * IRIS Localization and Mapping (LaMa)
+ *
+ * Copyright (c) 2019-today, Eurico Pedrosa, University of Aveiro - Portugal
+ * All rights reserved.
+ * License: New BSD
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
+ *     * Neither the name of the University of Aveiro nor the names of its
+ *       contributors may be used to endorse or promote products derived from
+ *       this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ *
+ */
 
-#include <rtk/sdm/truncated_signed_distance_map.h>
+#include "lama/sdm/truncated_signed_distance_map.h"
+#include "lama/sdm/marching_cubes.h"
 
-namespace rtk {
-namespace sdm {
-
-TruncatedSignedDistanceMap::TruncatedSignedDistanceMap(double resolution, uint32_t patch_size, bool is3d)
-    : DistanceMap(resolution, sizeof(truncated_signed_distance_t), patch_size, is3d)
+lama::TruncatedSignedDistanceMap::TruncatedSignedDistanceMap(double resolution, uint32_t patch_size, bool is3d)
+    : DistanceMap(resolution, sizeof(tsd_t), patch_size, is3d)
 {
     maximum_weight_ = 10000;
     truncate_size_  = 0.15;
@@ -20,7 +44,7 @@ TruncatedSignedDistanceMap::TruncatedSignedDistanceMap(double resolution, uint32
     delta_   = 4 * resolution;
 }
 
-TruncatedSignedDistanceMap::TruncatedSignedDistanceMap(const TruncatedSignedDistanceMap& other)
+lama::TruncatedSignedDistanceMap::TruncatedSignedDistanceMap(const TruncatedSignedDistanceMap& other)
     : DistanceMap(other)
 {
     maximum_weight_ = other.maximum_weight_;
@@ -28,11 +52,11 @@ TruncatedSignedDistanceMap::TruncatedSignedDistanceMap(const TruncatedSignedDist
 }
 
 
-TruncatedSignedDistanceMap::~TruncatedSignedDistanceMap()
+lama::TruncatedSignedDistanceMap::~TruncatedSignedDistanceMap()
 {}
 
 
-double TruncatedSignedDistanceMap::distance(const Vector3d& coordinates, Vector3d* gradient) const
+double lama::TruncatedSignedDistanceMap::distance(const Vector3d& coordinates, Vector3d* gradient) const
 {
     Vector3d map_coords = w2m_nocast(coordinates);
     Vector3ui disc_coords(map_coords.cast<unsigned int>());
@@ -105,23 +129,23 @@ double TruncatedSignedDistanceMap::distance(const Vector3d& coordinates, Vector3
     return dist;
 }
 
-double TruncatedSignedDistanceMap::distance(const Vector3ui& coordinates) const
+double lama::TruncatedSignedDistanceMap::distance(const Vector3ui& coordinates) const
 {
-    const truncated_signed_distance_t* cell = (const truncated_signed_distance_t*)get(coordinates);
+    const tsd_t* cell = (const tsd_t*)get(coordinates);
     if (cell == 0 || cell->weight == 0.0)
         return truncate_size_;
 
     return cell->distance;
 }
 
-size_t TruncatedSignedDistanceMap::insertPointCloud(const PointCloudXYZ::Ptr& cloud)
+size_t lama::TruncatedSignedDistanceMap::insertPointCloud(const PointCloudXYZ::Ptr& cloud)
 {
     Eigen::Affine3d affine = Eigen::Translation3d(cloud->sensor_origin_) * cloud->sensor_orientation_;
 
     KeySet hit_points;
     const size_t num_points = cloud->points.size();
 
-    for (int i = 0; i < num_points; ++i){
+    for (size_t i = 0; i < num_points; ++i){
         Vector3d hit = affine * cloud->points[i];
 
         std::pair<typename KeySet::iterator,bool> ret = hit_points.insert(this->w2m(hit));
@@ -134,15 +158,16 @@ size_t TruncatedSignedDistanceMap::insertPointCloud(const PointCloudXYZ::Ptr& cl
 }
 
 
-void TruncatedSignedDistanceMap::integrate(const Vector3d& origin, const Vector3d& hit)
+void lama::TruncatedSignedDistanceMap::integrate(const Vector3d& origin, const Vector3d& hit)
 {
+
     Vector3d direction_vector = hit - origin;
     float squared_norm = direction_vector.squaredNorm();
     direction_vector.normalize();
 
     float truncate = std::min(squared_norm, truncate_size_);
 
-    Vector3ui start = w2m(hit - direction_vector * truncate_size_);
+    Vector3ui start = w2m(hit - direction_vector * truncate);
     Vector3ui end   = w2m(hit + direction_vector * truncate_size_);
 
     VectorVector3ui voxels_coordinates;
@@ -155,8 +180,11 @@ void TruncatedSignedDistanceMap::integrate(const Vector3d& origin, const Vector3
     VectorVector3ui::const_iterator it = voxels_coordinates.begin();
     VectorVector3ui::const_iterator it_end = voxels_coordinates.end();
     for (; it != it_end; ++it){
+        // Voxblox: Incremental 3D Euclidean Signed Distance Fields for On-Board MAV Planning
+        // Oleynikova, Helen and Taylor, Zachary and Fehr, Marius and Siegwart, Roland and  Nieto, Juan
+        // IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS), 2017
 
-        truncated_signed_distance_t* cell = (truncated_signed_distance_t*)get(*it);
+        tsd_t * cell = (tsd_t*)get(*it);
 
         Vector3d voxel_center = m2w(*it);
         Vector3d origin_to_hit  = hit - origin;
@@ -172,21 +200,74 @@ void TruncatedSignedDistanceMap::integrate(const Vector3d& origin, const Vector3
         else
             weight = inv_squared_norm;
 
-        float previous_distance = cell->distance;
+        //float previous_distance = cell->distance;
         cell->distance = (cell->weight * cell->distance + weight * distance) / (cell->weight + weight);
         cell->weight = std::min(cell->weight + weight, maximum_weight_);
 
     }// end for(iterator)
 }
 
-void TruncatedSignedDistanceMap::setMaxDistance(double distance)
+void lama::TruncatedSignedDistanceMap::setMaxDistance(double distance)
 {
     truncate_size_ = distance;
 }
 
-double TruncatedSignedDistanceMap::maxDistance() const
+double lama::TruncatedSignedDistanceMap::maxDistance() const
 {
     return truncate_size_;
 }
 
-}} /* rtk::sdm */
+void lama::TruncatedSignedDistanceMap::toMesh(PolygonMesh& mesh) const
+{
+    Array<Vector3ui, 8> delta = {
+        Vector3ui{0, 0, 0}, Vector3ui{1, 0, 0}, Vector3ui{1, 1, 0}, Vector3ui{0, 1, 0},
+        Vector3ui{0, 0, 1}, Vector3ui{1, 0, 1}, Vector3ui{1, 1, 1}, Vector3ui{0, 1, 1}
+    };
+
+    visit_all_cells([&delta, &mesh, this](const Vector3ui& current_cell){
+        MarchingCubes::VertexArray vertex_coords;
+        MarchingCubes::SDFArray    sdf;
+
+        bool valid_neighbours = true;
+        for (int i = 0; i < 8; ++i){
+            Vector3ui coords = current_cell + delta[i];
+
+            const tsd_t* cell = (const tsd_t*) this->get(coords);
+            if (cell == nullptr || cell->weight == 0.0){
+                valid_neighbours = false;
+                break;
+            }
+
+            vertex_coords[i] = this->m2w(coords).cast<float>();
+            sdf[i] = distance(coords);
+        }
+
+        if (valid_neighbours == false)
+            return;
+
+        MarchingCubes::EdgeArray edge_coords;
+        MarchingCubes::interpolate_edge_vertices(vertex_coords, sdf, edge_coords);
+
+        int index   = MarchingCubes::calculate_vertex_configuration(sdf);
+        int* tt_row = MarchingCubes::triangle_table[index];
+
+        int col = 0;
+        while ((index = tt_row[col]) != -1){
+
+            mesh.vertex.push_back(edge_coords[index]);
+            mesh.index.push_back(mesh.vertex.size()-1);
+            index = tt_row[col + 1];
+
+            mesh.vertex.push_back(edge_coords[index]);
+            mesh.index.push_back(mesh.vertex.size()-1);
+            index = tt_row[col + 2];
+
+            mesh.vertex.push_back(edge_coords[index]);
+            mesh.index.push_back(mesh.vertex.size()-1);
+            col += 3;
+
+        }// end while
+    });
+
+}
+

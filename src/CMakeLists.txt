@@ -19,6 +19,8 @@ set(lama_SOURCES
     sdm/simple_occupancy_map.cpp
     sdm/frequency_occupancy_map.cpp
     sdm/probabilistic_occupancy_map.cpp
+    sdm/truncated_signed_distance_map.cpp
+    sdm/marching_cubes.cpp
     sdm/export.cpp
     # Lossless data compression
     extern/lz4.c

@@ -33,18 +33,25 @@
 
 #pragma once
 
+#include "lama/types.h"
+
 namespace lama {
 
-struct OccupancyMap;
-struct DistanceMap;
-struct TruncatedSignedDistanceMap;
+// Generates a mesh from a TSD map using the marching cubes algorithm.
+// Implementation from https://github.com/personalrobotics/OpenChisel
+struct MarchingCubes {
 
-namespace sdm {
+    typedef Array<Vector3f,  8> VertexArray;
+    typedef Array<Vector3f, 12> EdgeArray;
+    typedef Array<float,     8> SDFArray;
 
-bool export_to_png(const OccupancyMap& occ, const std::string& filename, double zed = 0.0);
-bool export_to_png(const DistanceMap&   dm, const std::string& filename, double zed = 0.0);
+    static int triangle_table[256][16];
+    static int edge_index_pairs[12][2];
 
-bool export_to_ply(const TruncatedSignedDistanceMap& tsdm, const std::string& filename);
+    static int calculate_vertex_configuration(const SDFArray& sdf);
+    static void interpolate_edge_vertices(const VertexArray& vertex_coords, const SDFArray& sdf, EdgeArray& edge_coords);
+    static Vector3f interpolate_vertex(const Vector3f& v1, const Vector3f& v2, float sdf1, float sdf2);
+};
 
-}} /* lama::sdm */
+} /* lama */
 
