@@ -41,22 +41,6 @@
 #include "lama/slam2d.h"
 #include "lama/match_surface_2d.h"
 
-lama::Slam2D::Options::Options()
-{
-    trans_thresh = 0.5;
-    rot_thresh   = 0.5;
-    l2_max       = 1.0;
-    truncated_ray= 0.0;
-    resolution   = 0.05;
-    patch_size   = 20;
-    max_iter     = 100;
-    keep_summary = false;
-
-    use_compression = false;
-    cache_size      = 60;
-    calgorithm      = "lz4";
-}
-
 lama::Slam2D::Slam2D(const Options& options)
 {
     distance_map_ = new DynamicDistanceMap(options.resolution, options.patch_size);

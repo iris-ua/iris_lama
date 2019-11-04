@@ -46,34 +46,9 @@
 
 #include "lama/sdm/export.h"
 
-lama::PFSlam2D::Options::Options()
-{
-    particles = 30;
-    use_gaussian_proposal = false;
-    srr = 0.1;
-    srt = 0.2;
-    str = 0.1;
-    stt = 0.2;
-    meas_sigma = 0.05;
-    meas_sigma_gain = 3;
-
-    trans_thresh    = 0.5;
-    rot_thresh      = 0.5;
-    l2_max          = 0.5;
-    truncated_ray   = -1;
-    resolution      = 0.05;
-    patch_size      = 32;
-    max_iter        = 100;
-
-    threads = -1;
-    use_compression = false;
-    cache_size = 60;
-}
-
 lama::PFSlam2D::PFSlam2D(const Options& options)
     : options_(options)
 {
-    /* solver_options_.write_to_stdout= true; */
     solver_options_.max_iterations = options.max_iter;
     solver_options_.strategy       = makeStrategy(options.strategy, Vector2d::Zero());
     /* solver_options_.robust_cost    = makeRobust("cauchy", 0.25); */

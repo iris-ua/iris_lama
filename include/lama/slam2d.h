@@ -53,44 +53,32 @@ public:
     typedef RobustCost::Ptr RobustCostPtr;
 
     struct Options {
-        Options();
-        /// the ammount of displacement that the system must
+        Options(){}
+
+        /// The ammount of linear motion that the system must
         /// gather before any update takes place.
-        double trans_thresh;
-
-        /// the ammout of rotation that the system must
+        double trans_thresh = 0.5;
+        /// The ammout of rotation that the system must
         /// gather before any update takes place.
-        double rot_thresh;
-
-        /// maximum distance (in meters) of the euclidean distance map.
-        double l2_max;
-
-        double truncated_ray;
-
-        /// resolutions of the maps.
-        double resolution;
-
-        /// The side size of a patch
-        uint32_t patch_size;
-
-        /// maximum number of iterations that the optimizer
-        /// can achieve.
-        uint32_t max_iter;
-
-        /// strategy to use in the optimization.
-        std::string strategy;
-
-        /// wether or not to keep an execution summary.
-        bool keep_summary;
-
-        /// online data compression
-        bool use_compression;
-
-        /// size of LRU
-        uint32_t cache_size;
-
-        /// compression algorithm to use when compression is activated
-        std::string calgorithm;
+        double rot_thresh = 0.5;
+        /// Maximum distance (in meters) of the euclidean distance map.
+        double l2_max = 0.5;
+        /// If != from zero, truncate the ray lenght (includes the endpoint).
+        double truncated_ray = 0.0;
+        /// Resolutions of the maps.
+        double resolution = 0.05;
+        /// The side size of a patch.
+        uint32_t patch_size = 32;
+        /// Maximum number of iterations that the optimizer can achieve.
+        uint32_t max_iter = 100;
+        /// Strategy to use in the optimization.
+        std::string strategy = "gn";
+        /// Should online data compression be used or not.
+        bool use_compression = false;
+        /// Size of LRU.
+        uint32_t cache_size = 100;
+        /// Compression algorithm to use when compression is activated
+        std::string calgorithm = "lz4";
     };
 
 

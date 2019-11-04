@@ -82,59 +82,53 @@ public:
     };
 
     struct Options {
-        Options();
+        Options(){}
 
-        /// the number of particles to use
+        /// The number of particles to use
         uint32_t particles;
-
-        ///
-        bool use_gaussian_proposal;
-
-        double srr;
-        double str;
-        double stt;
-        double srt;
-
-        double meas_sigma;
-        double meas_sigma_gain;
-
-        /// the ammount of displacement that the system must
+        /// How much the rotation affects rotation.
+        double srr = 0.1;
+        /// How much the translation affects rotation.
+        double str = 0.2;
+        /// How much the translation affects translation.
+        double stt = 0.1;
+        /// How much the rotation affects translation.
+        double srt = 0.2;
+        /// Measurement confidence.
+        double meas_sigma = 0.05;
+        /// Use this to smooth the measurements likelihood.
+        double meas_sigma_gain = 3;
+        /// The ammount of displacement that the system must
         /// gather before any update takes place.
-        double trans_thresh;
-
-        /// the ammout of rotation that the system must
+        double trans_thresh = 0.5;
+        /// The ammout of rotation that the system must
         /// gather before any update takes place.
-        double rot_thresh;
-
-        /// maximum distance (in meters) of the euclidean distance map.
-        double l2_max;
-
-        double truncated_ray;
-
-        /// resolutions of the maps.
-        double resolution;
-
+        double rot_thresh = 0.5;
+        /// Maximum distance (in meters) of the euclidean distance map.
+        double l2_max = 0.5;
+        /// If != from zero, truncate the ray lenght (includes the endpoint).
+        double truncated_ray = 0.0;
+        /// Resolutions of the maps.
+        double resolution = 0.05;
         /// The side size of a patch
-        uint32_t patch_size;
-
-        /// maximum number of iterations that the optimizer
+        uint32_t patch_size = 32;
+        /// Maximum number of iterations that the optimizer
         /// can achieve.
-        uint32_t max_iter;
-
-        /// strategy to use in the optimization.
-        std::string strategy;
-
-        int32_t threads;
-
-        uint32_t seed;
-
-        ///
-        bool use_compression;
-        uint32_t cache_size;
-
-        /// compression algorithm to use when compression is activated
-        std::string calgorithm;
-
+        uint32_t max_iter = 100;
+        /// Strategy to use in the optimization.
+        std::string strategy = "gn";
+        /// Number of working threads.
+        /// -1 for none, 0 for auto, >0 user define number of workers.
+        int32_t threads = -1;
+        /// Pseudo random generator seed.
+        /// Use 0 to generate a new seed.
+        uint32_t seed = 0;
+        /// Should online data compression be used or not.
+        bool use_compression = false;
+        /// Size of LRU.
+        uint32_t cache_size = 100;
+        /// Compression algorithm to use when compression is activated
+        std::string calgorithm = "lz4";
     };
 
     PFSlam2D(const Options& options = Options());
