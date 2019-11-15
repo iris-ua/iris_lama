@@ -46,6 +46,7 @@ set(lama_SOURCES
     extern/zstd/zstd_ddict.c
     # Localization and Mapping
     match_surface_2d.cpp
+    match_surface_3d.cpp
     loc2d.cpp
     slam2d.cpp
     pf_slam2d.cpp
