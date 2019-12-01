@@ -157,12 +157,16 @@ public:
 
     const FrequencyOccupancyMap* getOccupancyMap() const
     {
+        if (!has_first_scan) return nullptr;
+
         size_t pidx = getBestParticleIdx();
         return particles_[current_particle_set_][pidx].occ.get();
     }
 
     const DynamicDistanceMap* getDistanceMap() const
     {
+        if (!has_first_scan) return nullptr;
+
         size_t pidx = getBestParticleIdx();
         return particles_[current_particle_set_][pidx].dm.get();
     }
