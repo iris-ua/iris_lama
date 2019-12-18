@@ -126,7 +126,7 @@ private:
     double trans_thresh_;
     double rot_thresh_;
     bool has_first_scan;
-    bool do_global_loclization_;
+    bool do_global_localization_;
 };
 
 } /* lama */
