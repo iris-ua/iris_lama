@@ -70,7 +70,7 @@ void lama::Loc2D::Init(const Options& options)
     rot_thresh_   = options.rot_thresh;
 
     has_first_scan = false;
-    do_global_loclization_ = false;
+    do_global_localization_ = false;
 }
 
 lama::Loc2D::~Loc2D()
@@ -110,7 +110,7 @@ bool lama::Loc2D::update(const PointCloudXYZ::Ptr& surface, const Pose2D& odomet
     pose_ = ppose;
     odom_ = odometry;
 
-    if (do_global_loclization_)
+    if (do_global_localization_)
         globalLocalization(surface);
 
     // 2. Optimize
@@ -118,13 +118,13 @@ bool lama::Loc2D::update(const PointCloudXYZ::Ptr& surface, const Pose2D& odomet
     Solve(solver_options_, match_surface, 0);
 
     //--
-    if (do_global_loclization_){
+    if (do_global_localization_){
         VectorXd residuals;
         match_surface.eval(residuals, 0);
         double rmse = sqrt(residuals.squaredNorm()/((double)(surface->points.size() - 1)));
 
         if (rmse < 0.15)
-            do_global_loclization_ = false;
+            do_global_localization_ = false;
     }
     //--
 
@@ -135,7 +135,7 @@ bool lama::Loc2D::update(const PointCloudXYZ::Ptr& surface, const Pose2D& odomet
 
 void lama::Loc2D::triggerGlobalLocalization()
 {
-    do_global_loclization_ = true;
+    do_global_localization_ = true;
 }
 
 
