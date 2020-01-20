@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(iris_lama VERSION 1.0 LANGUAGES CXX C)
+project(iris_lama LANGUAGES CXX C)
 
 # http://answers.ros.org/question/230877/optionally-build-a-package-with-catkin/
 if( CATKIN_DEVEL_PREFIX OR catkin_FOUND OR CATKIN_BUILD_BINARY_PACKAGE)
