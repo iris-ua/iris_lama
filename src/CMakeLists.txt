@@ -51,10 +51,25 @@ set(lama_SOURCES
     pf_slam2d.cpp
 )
 
-add_library(iris-lama STATIC ${lama_SOURCES})
+add_library(${PROJECT_NAME} ${lama_SOURCES})
+target_compile_options(${PROJECT_NAME} PRIVATE -Wall)
 
-target_include_directories(iris-lama PUBLIC ${PROJECT_SOURCE_DIR}/include)
 
-target_compile_options(iris-lama PRIVATE -Wall)
+
+if(COMPILING_WITH_CATKIN)
+    install(TARGETS ${PROJECT_NAME}
+      ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+      LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+      RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}
+    )
+    install(DIRECTORY include/lama/
+      DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+      PATTERN ".svn" EXCLUDE
+    )
+else()
+    export(TARGETS ${PROJECT_NAME} FILE iris_lamaConfig.cmake)
+    set(CMAKE_EXPORT_PACKAGE_REGISTRY ON)
+    export(PACKAGE iris_lama)
+endif()
 
 
