@@ -36,8 +36,8 @@
 #include <memory>
 #include <vector>
 
+#include "time.h"
 #include "pose2d.h"
-
 #include "nlls/solver.h"
 
 #include "sdm/dynamic_distance_map.h"
@@ -74,13 +74,57 @@ public:
         Pose2D pose;
 
         // history
-        std::deque<Pose2D> poses;
+        DynamicArray<Pose2D> poses;
 
         DynamicDistanceMapPtr    dm;
         FrequencyOccupancyMapPtr occ;
 
     };
 
+    struct Summary {
+        /// When it happend.
+        DynamicArray<double> timestamp;
+        /// Total execution time.
+        DynamicArray<double> time;
+        /// Solving (i.e. optimization) execution time.
+        DynamicArray<double> time_solving;
+        /// Normalizing execution time.
+        DynamicArray<double> time_normalizing;
+        /// Resampling execution time.
+        DynamicArray<double> time_resampling;
+        /// Mapping (occ+distance) execution time.
+        DynamicArray<double> time_mapping;
+
+        /// Total memory used by the maps.
+        DynamicArray<double> memory;
+
+        std::string report() const;
+    };
+    Summary* summary = nullptr;
+
+    // Summary help functions.
+    inline void probeStamp(double stamp)
+    { summary->timestamp.push_back(stamp); }
+
+    inline void probeTime(Duration elapsed)
+    { summary->time.push_back(elapsed.toSec()); }
+
+    inline void probeSTime(Duration elapsed)
+    { summary->time_solving.push_back(elapsed.toSec()); }
+
+    inline void probeNTime(Duration elapsed)
+    { summary->time_normalizing.push_back(elapsed.toSec()); }
+
+    inline void probeRTime(Duration elapsed)
+    { summary->time_resampling.push_back(elapsed.toSec()); }
+
+    inline void probeMTime(Duration elapsed)
+    { summary->time_mapping.push_back(elapsed.toSec()); }
+
+    inline void probeMem()
+    { summary->memory.push_back(getMemoryUsage()); }
+
+    // All SLAM options are in one place for easy access and passing.
     struct Options {
         Options(){}
 
@@ -129,6 +173,8 @@ public:
         uint32_t cache_size = 100;
         /// Compression algorithm to use when compression is activated
         std::string calgorithm = "lz4";
+        /// Save data to create an execution summary.
+        bool create_summary = false;
     };
 
     PFSlam2D(const Options& options = Options());

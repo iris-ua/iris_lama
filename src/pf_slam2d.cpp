@@ -46,6 +46,63 @@
 
 #include "lama/sdm/export.h"
 
+std::string lama::PFSlam2D::Summary::report() const
+{
+    std::string report = format("\n LaMa PF Slam2D - Report\n"
+                                " =======================\n");
+
+    Eigen::Map<const VectorXd> v_t(&time[0], time.size());
+    Eigen::Map<const VectorXd> v_ts(&time_solving[0], time_solving.size());
+    Eigen::Map<const VectorXd> v_tn(&time_normalizing[0], time_normalizing.size());
+    Eigen::Map<const VectorXd> v_tr(&time_resampling[0], time_resampling.size());
+    Eigen::Map<const VectorXd> v_tm(&time_mapping[0], time_mapping.size());
+    Eigen::Map<const VectorXd> v_mem(&memory[0], memory.size());
+
+    auto time_span = v_t.sum();
+    auto time_mean = v_t.mean();
+
+    auto stampdiff = timestamp.back() - timestamp.front();
+
+    report += format(" Number of updates     %ld\n"
+                     " Number of resamples   %ld\n"
+                     " Max memory usage      %.2f MiB\n"
+                     " Problem time span     %d minute(s) and %d second(s)\n"
+                     " Execution time span   %d minute(s) and %d second(s)\n"
+                     " Execution frequency   %.2f Hz\n"
+                     " Realtime factor       %.2fx\n",
+                     time.size(), time_resampling.size(), v_mem.maxCoeff() / 1024.0 / 1024.0,
+                     ((uint32_t)stampdiff) / 60, ((uint32_t)stampdiff) % 60,
+                     ((uint32_t)time_span) / 60, ((uint32_t)time_span) % 60,
+                     (1.0 / time_mean), stampdiff / time_span );
+
+
+    auto v_t_std  = std::sqrt((v_t.array() - v_t.mean()).square().sum()/(v_t.size()-1));
+    auto v_ts_std = std::sqrt((v_ts.array() - v_ts.mean()).square().sum()/(v_ts.size()-1));
+    auto v_tn_std = std::sqrt((v_tn.array() - v_tn.mean()).square().sum()/(v_tn.size()-1));
+    auto v_tr_std = std::sqrt((v_tr.array() - v_tr.mean()).square().sum()/(v_tr.size()-1));
+    auto v_tm_std = std::sqrt((v_tm.array() - v_tm.mean()).square().sum()/(v_tm.size()-1));
+
+    report += format("\n Execution time (mean ± std [min, max]) in milliseconds\n"
+                     " --------------------------------------------------------\n"
+                     " Update          %f ± %f [%f, %f]\n"
+                     "   Optimization  %f ± %f [%f, %f]\n"
+                     "   Normalizing   %f ± %f [%f, %f]\n"
+                     "   Resampling    %f ± %f [%f, %f]\n"
+                     "   Mapping       %f ± %f [%f, %f]\n",
+                     v_t.mean() * 1000.0, v_t_std * 1000.0,
+                     v_t.minCoeff() * 1000.0, v_t.maxCoeff() * 1000.0,
+                     v_ts.mean() * 1000.0, v_ts_std * 1000.0,
+                     v_ts.minCoeff() * 1000.0, v_ts.maxCoeff() * 1000.0,
+                     v_tn.mean() * 1000.0, v_tn_std * 1000.0,
+                     v_tn.minCoeff() * 1000.0, v_tn.maxCoeff() * 1000.0,
+                     v_tr.mean() * 1000.0, v_tr_std * 1000.0,
+                     v_tr.minCoeff() * 1000.0, v_tr.maxCoeff() * 1000.0,
+                     v_tm.mean() * 1000.0, v_tm_std * 1000.0,
+                     v_tm.minCoeff() * 1000.0, v_tm.maxCoeff() * 1000.0);
+
+    return report;
+}
+
 lama::PFSlam2D::PFSlam2D(const Options& options)
     : options_(options)
 {
@@ -74,6 +131,9 @@ lama::PFSlam2D::PFSlam2D(const Options& options)
         options_.seed = random::genSeed();
 
     random::setSeed(options_.seed);
+
+    if (options.create_summary)
+        summary = new Summary();
 }
 
 lama::PFSlam2D::~PFSlam2D()
@@ -116,6 +176,9 @@ uint64_t lama::PFSlam2D::getMemoryUsage(uint64_t& occmem, uint64_t& dmmem) const
 
 bool lama::PFSlam2D::update(const PointCloudXYZ::Ptr& surface, const Pose2D& odometry, double timestamp)
 {
+    Timer timer(true);
+    Timer local_timer;
+
     current_surface_ = surface;
 
     if (not has_first_scan){
@@ -151,6 +214,14 @@ bool lama::PFSlam2D::update(const PointCloudXYZ::Ptr& surface, const Pose2D& odo
             particles_[0][i].occ = FrequencyOccupancyMapPtr(new FrequencyOccupancyMap(*particles_[0][0].occ));
         }
 
+        if (summary){
+            auto elapsed = timer.elapsed();
+            probeStamp(timestamp);
+            probeTime(elapsed);
+            probeMTime(elapsed);
+            probeMem();
+        }
+
         has_first_scan = true;
         return true;
     }
@@ -177,6 +248,8 @@ bool lama::PFSlam2D::update(const PointCloudXYZ::Ptr& surface, const Pose2D& odo
     acc_rot_   = 0;
 
     // 2. Apply scan matching
+    local_timer.reset();
+
     if (thread_pool_){
 
         for (uint32_t i = 0; i < num_particles; ++i)
@@ -191,14 +264,30 @@ bool lama::PFSlam2D::update(const PointCloudXYZ::Ptr& surface, const Pose2D& odo
         } // end for
     } // end if
 
+    if (summary)
+        probeSTime(local_timer.elapsed());
+
     // 3. Normalize weights and calculate neff
+    local_timer.reset();
+
     normalize();
 
+    if (summary)
+        probeNTime(local_timer.elapsed());
+
     // 4. resample if needed
-    if (neff_ < (options_.particles*0.5))
+    if (neff_ < (options_.particles*0.5)){
+        local_timer.reset();
+
         resample();
 
-    // 3. Update maps
+        if (summary)
+            probeRTime(local_timer.elapsed());
+    }
+
+    // 5. Update maps
+    local_timer.reset();
+
     if (thread_pool_){
         for (uint32_t i = 0; i < num_particles; ++i)
             thread_pool_->enqueue([this, i](){
@@ -209,6 +298,13 @@ bool lama::PFSlam2D::update(const PointCloudXYZ::Ptr& surface, const Pose2D& odo
     } else {
         for (uint32_t i = 0; i < num_particles; ++i)
             updateParticleMaps(&particles_[current_particle_set_][i]);
+    }
+
+    if (summary){
+        probeMTime(local_timer.elapsed());
+        probeTime(timer.elapsed());
+        probeStamp(timestamp);
+        probeMem();
     }
 
     return true;

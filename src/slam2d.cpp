@@ -34,12 +34,59 @@
 #include <fstream>
 
 #include "lama/print.h"
+#include "lama/time.h"
 
 #include "lama/nlls/gauss_newton.h"
 #include "lama/nlls/levenberg_marquardt.h"
 
 #include "lama/slam2d.h"
 #include "lama/match_surface_2d.h"
+
+std::string lama::Slam2D::Summary::report() const
+{
+    std::string report = format("\n LaMa Slam2D - Report\n"
+                                " ====================\n");
+
+    Eigen::Map<const VectorXd> v_t(&time[0], time.size());
+    Eigen::Map<const VectorXd> v_ts(&time_solving[0], time_solving.size());
+    Eigen::Map<const VectorXd> v_tm(&time_mapping[0], time_mapping.size());
+    Eigen::Map<const VectorXd> v_mem(&memory[0], memory.size());
+
+    auto time_span = v_t.sum();
+    auto time_mean = v_t.mean();
+
+    auto stampdiff = timestamp.back() - timestamp.front();
+
+    report += format(" Number of updates     %ld\n"
+                     " Max memory usage      %.2f MiB\n"
+                     " Problem time span     %d minute(s) and %d second(s)\n"
+                     " Execution time span   %d minute(s) and %d second(s)\n"
+                     " Execution frequency   %.2f Hz\n"
+                     " Realtime factor       %.2fx\n",
+                     time.size(), v_mem.maxCoeff() / 1024.0 / 1024.0,
+                     ((uint32_t)stampdiff) / 60, ((uint32_t)stampdiff) % 60,
+                     ((uint32_t)time_span) / 60, ((uint32_t)time_span) % 60,
+                     (1.0 / time_mean), stampdiff / time_span );
+
+
+    auto v_t_std  = std::sqrt((v_t.array() - v_t.mean()).square().sum()/(v_t.size()-1));
+    auto v_ts_std = std::sqrt((v_ts.array() - v_ts.mean()).square().sum()/(v_ts.size()-1));
+    auto v_tm_std = std::sqrt((v_tm.array() - v_tm.mean()).square().sum()/(v_tm.size()-1));
+
+    report += format("\n Execution time (mean ± std [min, max]) in milliseconds\n"
+                     " --------------------------------------------------------\n"
+                     " Update          %f ± %f [%f, %f]\n"
+                     "   Optimization  %f ± %f [%f, %f]\n"
+                     "   Mapping       %f ± %f [%f, %f]\n",
+                     v_t.mean() * 1000.0, v_t_std * 1000.0,
+                     v_t.minCoeff() * 1000.0, v_t.maxCoeff() * 1000.0,
+                     v_ts.mean() * 1000.0, v_ts_std * 1000.0,
+                     v_ts.minCoeff() * 1000.0, v_ts.maxCoeff() * 1000.0,
+                     v_tm.mean() * 1000.0, v_tm_std * 1000.0,
+                     v_tm.minCoeff() * 1000.0, v_tm.maxCoeff() * 1000.0);
+
+    return report;
+}
 
 lama::Slam2D::Slam2D(const Options& options)
 {
@@ -63,12 +110,17 @@ lama::Slam2D::Slam2D(const Options& options)
     has_first_scan = false;
     number_of_proccessed_cells_ = 0;
     truncated_ray_ = options.truncated_ray;
+
+    if (options.create_summary)
+        summary = new Summary();
+
 }
 
 lama::Slam2D::~Slam2D()
 {
     delete distance_map_;
     delete occupancy_map_;
+    delete summary;
 }
 
 bool lama::Slam2D::enoughMotion(const Pose2D& odometry)
@@ -86,9 +138,19 @@ bool lama::Slam2D::enoughMotion(const Pose2D& odometry)
 
 bool lama::Slam2D::update(const PointCloudXYZ::Ptr& surface, const Pose2D& odometry, double timestamp)
 {
+    Timer timer(true);
+
     if (not has_first_scan){
         odom_ = odometry;
         updateMaps(surface);
+
+        if (summary){
+            auto elapsed = timer.elapsed();
+            probeStamp(timestamp);
+            probeTime(elapsed);
+            probeMTime(elapsed);
+            probeMem();
+        }
 
         has_first_scan = true;
         return true;
@@ -107,13 +169,26 @@ bool lama::Slam2D::update(const PointCloudXYZ::Ptr& surface, const Pose2D& odome
     odom_ = odometry;
 
     // 2. Optimize
+    Timer time_solving(true);
+
     MatchSurface2D match_surface(distance_map_, surface, pose_.state );
     Solve(solver_options_, match_surface, 0);
 
     pose_.state = match_surface.getState();
+    if (summary)
+        probeSTime(time_solving.elapsed());
 
     // 3. Update maps
+    Timer time_mapping(true);
     updateMaps(surface);
+
+    if (summary){
+        probeMTime(time_mapping.elapsed());
+        probeTime(timer.elapsed());
+
+        probeStamp(timestamp);
+        probeMem();
+    }
 
     return true;
 }
