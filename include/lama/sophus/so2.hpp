@@ -1,626 +1,701 @@
-/// @file
-/// Special orthogonal group SO(2) - rotation in 2d.
+// This file is part of Sophus.
+//
+// Copyright 2012-2013 Hauke Strasdat
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to
+// deal in the Software without restriction, including without limitation the
+// rights  to use, copy, modify, merge, publish, distribute, sublicense, and/or
+// sell copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+// IN THE SOFTWARE.
 
 #ifndef SOPHUS_SO2_HPP
 #define SOPHUS_SO2_HPP
 
 #include <complex>
-#include <type_traits>
 
-// Include only the selective set of Eigen headers that we need.
-// This helps when using Sophus with unusual compilers, like nvcc.
-#include <Eigen/LU>
+#include "sophus.hpp"
 
-#include "rotation_matrix.hpp"
-#include "types.hpp"
+////////////////////////////////////////////////////////////////////////////
+// Forward Declarations / typedefs
+////////////////////////////////////////////////////////////////////////////
 
 namespace Sophus {
-template <class Scalar_, int Options = 0>
-class SO2;
-using SO2d = SO2<double>;
-using SO2f = SO2<float>;
-}  // namespace Sophus
+template<typename _Scalar, int _Options=0> class SO2Group;
+typedef SO2Group<double> SO2 EIGEN_DEPRECATED;
+typedef SO2Group<double> SO2d; /**< double precision SO2 */
+typedef SO2Group<float> SO2f;  /**< single precision SO2 */
+}
+
+////////////////////////////////////////////////////////////////////////////
+// Eigen Traits (For querying derived types in CRTP hierarchy)
+////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////
+// Eigen Traits (For querying derived types in CRTP hierarchy)
+////////////////////////////////////////////////////////////////////////////
 
 namespace Eigen {
 namespace internal {
 
-template <class Scalar_, int Options_>
-struct traits<Sophus::SO2<Scalar_, Options_>> {
-  static constexpr int Options = Options_;
-  using Scalar = Scalar_;
-  using ComplexType = Sophus::Vector2<Scalar, Options>;
+template<typename _Scalar, int _Options>
+struct traits<Sophus::SO2Group<_Scalar,_Options> > {
+  typedef _Scalar Scalar;
+  typedef Matrix<Scalar,2,1> ComplexType;
 };
 
-template <class Scalar_, int Options_>
-struct traits<Map<Sophus::SO2<Scalar_>, Options_>>
-    : traits<Sophus::SO2<Scalar_, Options_>> {
-  static constexpr int Options = Options_;
-  using Scalar = Scalar_;
-  using ComplexType = Map<Sophus::Vector2<Scalar>, Options>;
+template<typename _Scalar, int _Options>
+struct traits<Map<Sophus::SO2Group<_Scalar>, _Options> >
+    : traits<Sophus::SO2Group<_Scalar, _Options> > {
+  typedef _Scalar Scalar;
+  typedef Map<Matrix<Scalar,2,1>,_Options> ComplexType;
 };
 
-template <class Scalar_, int Options_>
-struct traits<Map<Sophus::SO2<Scalar_> const, Options_>>
-    : traits<Sophus::SO2<Scalar_, Options_> const> {
-  static constexpr int Options = Options_;
-  using Scalar = Scalar_;
-  using ComplexType = Map<Sophus::Vector2<Scalar> const, Options>;
+template<typename _Scalar, int _Options>
+struct traits<Map<const Sophus::SO2Group<_Scalar>, _Options> >
+    : traits<const Sophus::SO2Group<_Scalar, _Options> > {
+  typedef _Scalar Scalar;
+  typedef Map<const Matrix<Scalar,2,1>,_Options> ComplexType;
 };
-}  // namespace internal
-}  // namespace Eigen
+
+}
+}
 
 namespace Sophus {
+using namespace Eigen;
 
-/// SO2 base type - implements SO2 class but is storage agnostic.
-///
-/// SO(2) is the group of rotations in 2d. As a matrix group, it is the set of
-/// matrices which are orthogonal such that ``R * R' = I`` (with ``R'`` being
-/// the transpose of ``R``) and have a positive determinant. In particular, the
-/// determinant is 1. Let ``theta`` be the rotation angle, the rotation matrix
-/// can be written in close form:
-///
-///      | cos(theta) -sin(theta) |
-///      | sin(theta)  cos(theta) |
-///
-/// As a matter of fact, the first column of those matrices is isomorph to the
-/// set of unit complex numbers U(1). Thus, internally, SO2 is represented as
-/// complex number with length 1.
-///
-/// SO(2) is a compact and commutative group. First it is compact since the set
-/// of rotation matrices is a closed and bounded set. Second it is commutative
-/// since ``R(alpha) * R(beta) = R(beta) * R(alpha)``,  simply because ``alpha +
-/// beta = beta + alpha`` with ``alpha`` and ``beta`` being rotation angles
-/// (about the same axis).
-///
-/// Class invariant: The 2-norm of ``unit_complex`` must be close to 1.
-/// Technically speaking, it must hold that:
-///
-///   ``|unit_complex().squaredNorm() - 1| <= Constants::epsilon()``.
-template <class Derived>
-class SO2Base {
- public:
-  static constexpr int Options = Eigen::internal::traits<Derived>::Options;
-  using Scalar = typename Eigen::internal::traits<Derived>::Scalar;
-  using ComplexT = typename Eigen::internal::traits<Derived>::ComplexType;
-  using ComplexTemporaryType = Sophus::Vector2<Scalar, Options>;
+/**
+ * \brief SO2 base type - implements SO2 class but is storage agnostic
+ *
+ * [add more detailed description/tutorial]
+ */
+template<typename Derived>
+class SO2GroupBase {
+public:
+  /** \brief scalar type */
+  typedef typename internal::traits<Derived>::Scalar Scalar;
+  /** \brief complex number reference type */
+  typedef typename internal::traits<Derived>::ComplexType &
+  ComplexReference;
+  /** \brief complex number const reference type */
+  typedef const typename internal::traits<Derived>::ComplexType &
+  ConstComplexReference;
 
-  /// Degrees of freedom of manifold, number of dimensions in tangent space (one
-  /// since we only have in-plane rotations).
-  static int constexpr DoF = 1;
-  /// Number of internal parameters used (complex numbers are a tuples).
-  static int constexpr num_parameters = 2;
-  /// Group transformations are 2x2 matrices.
-  static int constexpr N = 2;
-  using Transformation = Matrix<Scalar, N, N>;
-  using Point = Vector2<Scalar>;
-  using HomogeneousPoint = Vector3<Scalar>;
-  using Line = ParametrizedLine2<Scalar>;
-  using Tangent = Scalar;
-  using Adjoint = Scalar;
+  /** \brief degree of freedom of group
+   *         (one for in-plane rotation) */
+  static const int DoF = 1;
+  /** \brief number of internal parameters used
+   *         (unit complex number for rotation) */
+  static const int num_parameters = 2;
+  /** \brief group transformations are NxN matrices */
+  static const int N = 2;
+  /** \brief group transfomation type */
+  typedef Matrix<Scalar,N,N> Transformation;
+  /** \brief point type */
+  typedef Matrix<Scalar,2,1> Point;
+  /** \brief tangent vector type */
+  typedef Scalar Tangent;
+  /** \brief adjoint transformation type */
+  typedef Scalar Adjoint;
 
-  /// For binary operations the return type is determined with the
-  /// ScalarBinaryOpTraits feature of Eigen. This allows mixing concrete and Map
-  /// types, as well as other compatible scalar types such as Ceres::Jet and
-  /// double scalars with SO2 operations.
-  template <typename OtherDerived>
-  using ReturnScalar = typename Eigen::ScalarBinaryOpTraits<
-      Scalar, typename OtherDerived::Scalar>::ReturnType;
-
-  template <typename OtherDerived>
-  using SO2Product = SO2<ReturnScalar<OtherDerived>>;
-
-  template <typename PointDerived>
-  using PointProduct = Vector2<ReturnScalar<PointDerived>>;
-
-  template <typename HPointDerived>
-  using HomogeneousPointProduct = Vector3<ReturnScalar<HPointDerived>>;
-
-  /// Adjoint transformation
-  ///
-  /// This function return the adjoint transformation ``Ad`` of the group
-  /// element ``A`` such that for all ``x`` it holds that
-  /// ``hat(Ad_A * x) = A * hat(x) A^{-1}``. See hat-operator below.
-  ///
-  /// It simply ``1``, since ``SO(2)`` is a commutative group.
-  ///
-  SOPHUS_FUNC Adjoint Adj() const { return Scalar(1); }
-
-  /// Returns copy of instance casted to NewScalarType.
-  ///
-  template <class NewScalarType>
-  SOPHUS_FUNC SO2<NewScalarType> cast() const {
-    return SO2<NewScalarType>(unit_complex().template cast<NewScalarType>());
+  /**
+   * \brief Adjoint transformation
+   *
+   * This function return the adjoint transformation \f$ Ad \f$ of the
+   * group instance \f$ A \f$  such that for all \f$ x \f$
+   * it holds that \f$ \widehat{Ad_A\cdot x} = A\widehat{x}A^{-1} \f$
+   * with \f$\ \widehat{\cdot} \f$ being the hat()-operator.
+   *
+   * For SO2, it simply returns 1.
+   */
+  inline
+  const Adjoint Adj() const {
+    return 1;
   }
 
-  /// This provides unsafe read/write access to internal data. SO(2) is
-  /// represented by a unit complex number (two parameters). When using direct
-  /// write access, the user needs to take care of that the complex number stays
-  /// normalized.
-  ///
-  SOPHUS_FUNC Scalar* data() { return unit_complex_nonconst().data(); }
-
-  /// Const version of data() above.
-  ///
-  SOPHUS_FUNC Scalar const* data() const { return unit_complex().data(); }
-
-  /// Returns group inverse.
-  ///
-  SOPHUS_FUNC SO2<Scalar> inverse() const {
-    return SO2<Scalar>(unit_complex().x(), -unit_complex().y());
+  /**
+   * \returns copy of instance casted to NewScalarType
+   */
+  template<typename NewScalarType>
+  inline SO2Group<NewScalarType> cast() const {
+    return SO2Group<NewScalarType>(unit_complex()
+                                   .template cast<NewScalarType>() );
   }
 
-  /// Logarithmic map
-  ///
-  /// Computes the logarithm, the inverse of the group exponential which maps
-  /// element of the group (rotation matrices) to elements of the tangent space
-  /// (rotation angles).
-  ///
-  /// To be specific, this function computes ``vee(logmat(.))`` with
-  /// ``logmat(.)`` being the matrix logarithm and ``vee(.)`` the vee-operator
-  /// of SO(2).
-  ///
-  SOPHUS_FUNC Scalar log() const {
-    using std::atan2;
-    return atan2(unit_complex().y(), unit_complex().x());
+  /**
+   * \returns pointer to internal data
+   *
+   * This provides unsafe read/write access to internal data. SO2 is represented
+   * by a complex number with unit length (two parameters). When using direct
+   * write access, the user needs to take care of that the complex number stays
+   * normalized.
+   *
+   * \see normalize()
+   */
+  inline Scalar* data() {
+    return unit_complex_nonconst().data();
   }
 
-  /// It re-normalizes ``unit_complex`` to unit length.
-  ///
-  /// Note: Because of the class invariant, there is typically no need to call
-  /// this function directly.
-  ///
-  SOPHUS_FUNC void normalize() {
-    using std::sqrt;
-    Scalar length = sqrt(unit_complex().x() * unit_complex().x() +
-                         unit_complex().y() * unit_complex().y());
-    SOPHUS_ENSURE(length >= Constants<Scalar>::epsilon(),
-                  "Complex number should not be close to zero!");
+  /**
+   * \returns const pointer to internal data
+   *
+   * Const version of data().
+   */
+  inline const Scalar* data() const {
+    return unit_complex().data();
+  }
+
+  /**
+   * \brief Fast group multiplication
+   *
+   * This method is a fast version of operator*=(), since it does not perform
+   * normalization. It is up to the user to call normalize() once in a while.
+   *
+   * \see operator*=()
+   */
+  inline
+  void fastMultiply(const SO2Group<Scalar>& other) {
+    Scalar lhs_real = unit_complex().x();
+    Scalar lhs_imag = unit_complex().y();
+    const Scalar & rhs_real = other.unit_complex().x();
+    const Scalar & rhs_imag = other.unit_complex().y();
+    // complex multiplication
+    unit_complex_nonconst().x() = lhs_real*rhs_real - lhs_imag*rhs_imag;
+    unit_complex_nonconst().y() = lhs_real*rhs_imag + lhs_imag*rhs_real;
+  }
+
+  /**
+   * \returns group inverse of instance
+   */
+  inline
+  const SO2Group<Scalar> inverse() const {
+    return SO2Group<Scalar>(unit_complex().x(), -unit_complex().y());
+  }
+
+  /**
+   * \brief Logarithmic map
+   *
+   * \returns tangent space representation (=rotation angle) of instance
+   *
+   * \see  log().
+   */
+  inline
+  const Scalar log() const {
+    return SO2Group<Scalar>::log(*this);
+  }
+
+  /**
+   * \brief Normalize complex number
+   *
+   * It re-normalizes complex number to unit length. This method only needs to
+   * be called in conjunction with fastMultiply() or data() write access.
+   */
+  inline
+  void normalize() {
+    Scalar length =
+        std::sqrt(unit_complex().x()*unit_complex().x()
+             + unit_complex().y()*unit_complex().y());
+    if(length < SophusConstants<Scalar>::epsilon()) {
+      throw SophusException("Complex number is (near) zero!");
+    }
     unit_complex_nonconst().x() /= length;
     unit_complex_nonconst().y() /= length;
   }
 
-  /// Returns 2x2 matrix representation of the instance.
-  ///
-  /// For SO(2), the matrix representation is an orthogonal matrix ``R`` with
-  /// ``det(R)=1``, thus the so-called "rotation matrix".
-  ///
-  SOPHUS_FUNC Transformation matrix() const {
-    Scalar const& real = unit_complex().x();
-    Scalar const& imag = unit_complex().y();
+  /**
+   * \returns 2x2 matrix representation of instance
+   *
+   * For SO2, the matrix representation is an orthogonal matrix R with det(R)=1,
+   * thus the so-called rotation matrix.
+   */
+  inline
+  const Transformation matrix() const {
+    const Scalar & real = unit_complex().x();
+    const Scalar & imag = unit_complex().y();
     Transformation R;
-    // clang-format off
-    R <<
-      real, -imag,
-      imag,  real;
-    // clang-format on
+    R << real, -imag
+        ,imag,  real;
     return R;
   }
 
-  /// Assignment operator
-  ///
-  SOPHUS_FUNC SO2Base& operator=(SO2Base const& other) = default;
-
-  /// Assignment-like operator from OtherDerived.
-  ///
-  template <class OtherDerived>
-  SOPHUS_FUNC SO2Base<Derived>& operator=(SO2Base<OtherDerived> const& other) {
+  /**
+   * \brief Assignment operator
+   */
+  template<typename OtherDerived> inline
+  SO2GroupBase<Derived>& operator=(const SO2GroupBase<OtherDerived> & other) {
     unit_complex_nonconst() = other.unit_complex();
     return *this;
   }
 
-  /// Group multiplication, which is rotation concatenation.
-  ///
-  template <typename OtherDerived>
-  SOPHUS_FUNC SO2Product<OtherDerived> operator*(
-      SO2Base<OtherDerived> const& other) const {
-    using ResultT = ReturnScalar<OtherDerived>;
-    Scalar const lhs_real = unit_complex().x();
-    Scalar const lhs_imag = unit_complex().y();
-    typename OtherDerived::Scalar const& rhs_real = other.unit_complex().x();
-    typename OtherDerived::Scalar const& rhs_imag = other.unit_complex().y();
-    // complex multiplication
-    ResultT const result_real = lhs_real * rhs_real - lhs_imag * rhs_imag;
-    ResultT const result_imag = lhs_real * rhs_imag + lhs_imag * rhs_real;
-
-    ResultT const squared_norm =
-        result_real * result_real + result_imag * result_imag;
-    // We can assume that the squared-norm is close to 1 since we deal with a
-    // unit complex number. Due to numerical precision issues, there might
-    // be a small drift after pose concatenation. Hence, we need to renormalizes
-    // the complex number here.
-    // Since squared-norm is close to 1, we do not need to calculate the costly
-    // square-root, but can use an approximation around 1 (see
-    // http://stackoverflow.com/a/12934750 for details).
-    if (squared_norm != ResultT(1.0)) {
-      ResultT const scale = ResultT(2.0) / (ResultT(1.0) + squared_norm);
-      return SO2Product<OtherDerived>(result_real * scale, result_imag * scale);
-    }
-    return SO2Product<OtherDerived>(result_real, result_imag);
+  /**
+   * \brief Group multiplication
+   * \see operator*=()
+   */
+  inline
+  const SO2Group<Scalar> operator*(const SO2Group<Scalar>& other) const {
+    SO2Group<Scalar> result(*this);
+    result *= other;
+    return result;
   }
 
-  /// Group action on 2-points.
-  ///
-  /// This function rotates a 2 dimensional point ``p`` by the SO2 element
-  ///  ``bar_R_foo`` (= rotation matrix): ``p_bar = bar_R_foo * p_foo``.
-  ///
-  template <typename PointDerived,
-            typename = typename std::enable_if<
-                IsFixedSizeVector<PointDerived, 2>::value>::type>
-  SOPHUS_FUNC PointProduct<PointDerived> operator*(
-      Eigen::MatrixBase<PointDerived> const& p) const {
-    Scalar const& real = unit_complex().x();
-    Scalar const& imag = unit_complex().y();
-    return PointProduct<PointDerived>(real * p[0] - imag * p[1],
-                                      imag * p[0] + real * p[1]);
+  /**
+   * \brief Group action on \f$ \mathbf{R}^2 \f$
+   *
+   * \param p point \f$p \in \mathbf{R}^2 \f$
+   * \returns point \f$p' \in \mathbf{R}^2 \f$, rotated version of \f$p\f$
+   *
+   * This function rotates a point \f$ p \f$ in  \f$ \mathbf{R}^2 \f$ by the
+   * SO2 transformation \f$R\f$ (=rotation matrix): \f$ p' = R\cdot p \f$.
+   */
+  inline
+  const Point operator*(const Point & p) const {
+    const Scalar & real = unit_complex().x();
+    const Scalar & imag = unit_complex().y();
+    return Point(real*p[0] - imag*p[1], imag*p[0] + real*p[1]);
   }
 
-  /// Group action on homogeneous 2-points.
-  ///
-  /// This function rotates a homogeneous 2 dimensional point ``p`` by the SO2
-  /// element ``bar_R_foo`` (= rotation matrix): ``p_bar = bar_R_foo * p_foo``.
-  ///
-  template <typename HPointDerived,
-            typename = typename std::enable_if<
-                IsFixedSizeVector<HPointDerived, 3>::value>::type>
-  SOPHUS_FUNC HomogeneousPointProduct<HPointDerived> operator*(
-      Eigen::MatrixBase<HPointDerived> const& p) const {
-    Scalar const& real = unit_complex().x();
-    Scalar const& imag = unit_complex().y();
-    return HomogeneousPointProduct<HPointDerived>(
-        real * p[0] - imag * p[1], imag * p[0] + real * p[1], p[2]);
+  /**
+   * \brief In-place group multiplication
+   *
+   * \see fastMultiply()
+   * \see operator*()
+   */
+  inline
+  void operator*=(const SO2Group<Scalar>& other) {
+    fastMultiply(other);
+    normalize();
   }
 
-  /// Group action on lines.
-  ///
-  /// This function rotates a parametrized line ``l(t) = o + t * d`` by the SO2
-  /// element:
-  ///
-  /// Both direction ``d`` and origin ``o`` are rotated as a 2 dimensional point
-  ///
-  SOPHUS_FUNC Line operator*(Line const& l) const {
-    return Line((*this) * l.origin(), (*this) * l.direction());
-  }
-
-  /// In-place group multiplication. This method is only valid if the return
-  /// type of the multiplication is compatible with this SO2's Scalar type.
-  ///
-  template <typename OtherDerived,
-            typename = typename std::enable_if<
-                std::is_same<Scalar, ReturnScalar<OtherDerived>>::value>::type>
-  SOPHUS_FUNC SO2Base<Derived> operator*=(SO2Base<OtherDerived> const& other) {
-    *static_cast<Derived*>(this) = *this * other;
-    return *this;
-  }
-
-  /// Returns derivative of  this * SO2::exp(x)  wrt. x at x=0.
-  ///
-  SOPHUS_FUNC Matrix<Scalar, num_parameters, DoF> Dx_this_mul_exp_x_at_0()
-      const {
-    return Matrix<Scalar, num_parameters, DoF>(-unit_complex()[1],
-                                               unit_complex()[0]);
-  }
-
-  /// Returns internal parameters of SO(2).
-  ///
-  /// It returns (c[0], c[1]), with c being the unit complex number.
-  ///
-  SOPHUS_FUNC Sophus::Vector<Scalar, num_parameters> params() const {
-    return unit_complex();
-  }
-
-  /// Takes in complex number / tuple and normalizes it.
-  ///
-  /// Precondition: The complex number must not be close to zero.
-  ///
-  SOPHUS_FUNC void setComplex(Point const& complex) {
+  /**
+   * \brief Setter of internal unit complex number representation
+   *
+   * \param complex
+   * \pre   the complex number must not be near zero
+   *
+   * The complex number is normalized to unit length.
+   */
+  inline
+  void setComplex(const Point & complex) {
     unit_complex_nonconst() = complex;
     normalize();
   }
 
-  /// Accessor of unit quaternion.
-  ///
-  SOPHUS_FUNC
-  ComplexT const& unit_complex() const {
-    return static_cast<Derived const*>(this)->unit_complex();
+  /**
+   * \brief Accessor of unit complex number
+   *
+   * No direct write access is given to ensure the complex stays normalized.
+   */
+  EIGEN_STRONG_INLINE
+  ConstComplexReference unit_complex() const {
+    return static_cast<const Derived*>(this)->unit_complex();
   }
 
- private:
-  /// Mutator of unit_complex is private to ensure class invariant. That is
-  /// the complex number must stay close to unit length.
-  ///
-  SOPHUS_FUNC
-  ComplexT& unit_complex_nonconst() {
-    return static_cast<Derived*>(this)->unit_complex_nonconst();
-  }
-};
+  ////////////////////////////////////////////////////////////////////////////
+  // public static functions
+  ////////////////////////////////////////////////////////////////////////////
 
-/// SO2 using  default storage; derived from SO2Base.
-template <class Scalar_, int Options>
-class SO2 : public SO2Base<SO2<Scalar_, Options>> {
- public:
-  using Base = SO2Base<SO2<Scalar_, Options>>;
-  static int constexpr DoF = Base::DoF;
-  static int constexpr num_parameters = Base::num_parameters;
-
-  using Scalar = Scalar_;
-  using Transformation = typename Base::Transformation;
-  using Point = typename Base::Point;
-  using HomogeneousPoint = typename Base::HomogeneousPoint;
-  using Tangent = typename Base::Tangent;
-  using Adjoint = typename Base::Adjoint;
-  using ComplexMember = Vector2<Scalar, Options>;
-
-  /// ``Base`` is friend so unit_complex_nonconst can be accessed from ``Base``.
-  friend class SO2Base<SO2<Scalar, Options>>;
-
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-
-  /// Default constructor initializes unit complex number to identity rotation.
-  ///
-  SOPHUS_FUNC SO2() : unit_complex_(Scalar(1), Scalar(0)) {}
-
-  /// Copy constructor
-  ///
-  SOPHUS_FUNC SO2(SO2 const& other) = default;
-
-  /// Copy-like constructor from OtherDerived.
-  ///
-  template <class OtherDerived>
-  SOPHUS_FUNC SO2(SO2Base<OtherDerived> const& other)
-      : unit_complex_(other.unit_complex()) {}
-
-  /// Constructor from rotation matrix
-  ///
-  /// Precondition: rotation matrix need to be orthogonal with determinant of 1.
-  ///
-  SOPHUS_FUNC explicit SO2(Transformation const& R)
-      : unit_complex_(Scalar(0.5) * (R(0, 0) + R(1, 1)),
-                      Scalar(0.5) * (R(1, 0) - R(0, 1))) {
-    SOPHUS_ENSURE(isOrthogonal(R), "R is not orthogonal:\n %", R);
-    SOPHUS_ENSURE(R.determinant() > Scalar(0), "det(R) is not positive: %",
-                  R.determinant());
+  /**
+   * \brief Group exponential
+   *
+   * \param theta tangent space element (=rotation angle \f$ \theta \f$)
+   * \returns     corresponding element of the group SO2
+   *
+   * To be more specific, this function computes \f$ \exp(\widehat{\theta}) \f$
+   * with \f$ \exp(\cdot) \f$ being the matrix exponential
+   * and \f$ \widehat{\cdot} \f$ the hat()-operator of SO2.
+   *
+   * \see hat()
+   * \see log()
+   */
+  inline static
+  const SO2Group<Scalar> exp(const Tangent & theta) {
+    return SO2Group<Scalar>(std::cos(theta), std::sin(theta));
   }
 
-  /// Constructor from pair of real and imaginary number.
-  ///
-  /// Precondition: The pair must not be close to zero.
-  ///
-  SOPHUS_FUNC SO2(Scalar const& real, Scalar const& imag)
-      : unit_complex_(real, imag) {
-    Base::normalize();
+  /**
+   * \brief Generator
+   *
+   * The infinitesimal generator of SO2
+   * is \f$
+   *        G_0 = \left( \begin{array}{ccc}
+   *                          0& -1& \\
+   *                          1&  0&
+   *                     \end{array} \right).
+   * \f$
+   * \see hat()
+   */
+  inline static
+  const Transformation generator() {
+    return hat(1);
   }
 
-  /// Constructor from 2-vector.
-  ///
-  /// Precondition: The vector must not be close to zero.
-  ///
-  template <class D>
-  SOPHUS_FUNC explicit SO2(Eigen::MatrixBase<D> const& complex)
-      : unit_complex_(complex) {
-    static_assert(std::is_same<typename D::Scalar, Scalar>::value,
-                  "must be same Scalar type");
-    Base::normalize();
-  }
-
-  /// Constructor from an rotation angle.
-  ///
-  SOPHUS_FUNC explicit SO2(Scalar theta) {
-    unit_complex_nonconst() = SO2<Scalar>::exp(theta).unit_complex();
-  }
-
-  /// Accessor of unit complex number
-  ///
-  SOPHUS_FUNC ComplexMember const& unit_complex() const {
-    return unit_complex_;
-  }
-
-  /// Group exponential
-  ///
-  /// This functions takes in an element of tangent space (= rotation angle
-  /// ``theta``) and returns the corresponding element of the group SO(2).
-  ///
-  /// To be more specific, this function computes ``expmat(hat(omega))``
-  /// with ``expmat(.)`` being the matrix exponential and ``hat(.)`` being the
-  /// hat()-operator of SO(2).
-  ///
-  SOPHUS_FUNC static SO2<Scalar> exp(Tangent const& theta) {
-    using std::cos;
-    using std::sin;
-    return SO2<Scalar>(cos(theta), sin(theta));
-  }
-
-  /// Returns derivative of exp(x) wrt. x.
-  ///
-  SOPHUS_FUNC static Sophus::Matrix<Scalar, num_parameters, DoF> Dx_exp_x(
-      Tangent const& theta) {
-    using std::cos;
-    using std::sin;
-    return Sophus::Matrix<Scalar, num_parameters, DoF>(-sin(theta), cos(theta));
-  }
-
-  /// Returns derivative of exp(x) wrt. x_i at x=0.
-  ///
-  SOPHUS_FUNC static Sophus::Matrix<Scalar, num_parameters, DoF>
-  Dx_exp_x_at_0() {
-    return Sophus::Matrix<Scalar, num_parameters, DoF>(Scalar(0), Scalar(1));
-  }
-
-  /// Returns derivative of exp(x).matrix() wrt. ``x_i at x=0``.
-  ///
-  SOPHUS_FUNC static Transformation Dxi_exp_x_matrix_at_0(int) {
-    return generator();
-  }
-
-  /// Returns the infinitesimal generators of SO(2).
-  ///
-  /// The infinitesimal generators of SO(2) is:
-  ///
-  ///     |  0  1 |
-  ///     | -1  0 |
-  ///
-  SOPHUS_FUNC static Transformation generator() { return hat(Scalar(1)); }
-
-  /// hat-operator
-  ///
-  /// It takes in the scalar representation ``theta`` (= rotation angle) and
-  /// returns the corresponding matrix representation of Lie algebra element.
-  ///
-  /// Formally, the hat()-operator of SO(2) is defined as
-  ///
-  ///   ``hat(.): R^2 -> R^{2x2},  hat(theta) = theta * G``
-  ///
-  /// with ``G`` being the infinitesimal generator of SO(2).
-  ///
-  /// The corresponding inverse is the vee()-operator, see below.
-  ///
-  SOPHUS_FUNC static Transformation hat(Tangent const& theta) {
+  /**
+   * \brief hat-operator
+   *
+   * \param theta scalar representation of Lie algebra element
+   * \returns     2x2-matrix representatin of Lie algebra element
+   *
+   * Formally, the hat-operator of SO2 is defined
+   * as \f$ \widehat{\cdot}: \mathbf{R}^2 \rightarrow \mathbf{R}^{2\times 2},
+   * \quad \widehat{\theta} = G_0\cdot \theta \f$
+   * with \f$ G_0 \f$ being the infinitesial generator().
+   *
+   * \see generator()
+   * \see vee()
+   */
+  inline static
+  const Transformation hat(const Tangent & theta) {
     Transformation Omega;
-    // clang-format off
-    Omega <<
-        Scalar(0),   -theta,
-            theta, Scalar(0);
-    // clang-format on
+    Omega <<  static_cast<Scalar>(0), -theta
+        ,  theta,     static_cast<Scalar>(0);
     return Omega;
   }
 
-  /// Returns closed SO2 given arbitrary 2x2 matrix.
-  ///
-  template <class S = Scalar>
-  static SOPHUS_FUNC enable_if_t<std::is_floating_point<S>::value, SO2>
-  fitToSO2(Transformation const& R) {
-    return SO2(makeRotationMatrix(R));
+  /**
+   * \brief Lie bracket
+   *
+   * \param theta1 scalar representation of Lie algebra element
+   * \param theta2 scalar representation of Lie algebra element
+   * \returns      zero
+   *
+   * It computes the bracket. For the Lie algebra so2, the Lie bracket is
+   * simply \f$ [\theta_1, \theta_2]_{so2} = 0 \f$ since SO2 is a
+   * commutative group.
+   *
+   * \see hat()
+   * \see vee()
+   */
+  inline static
+  const Tangent lieBracket(const Tangent & theta1,
+                           const Tangent & theta2) {
+    return static_cast<Scalar>(0);
   }
 
-  /// Lie bracket
-  ///
-  /// It returns the Lie bracket of SO(2). Since SO(2) is a commutative group,
-  /// the Lie bracket is simple ``0``.
-  ///
-  SOPHUS_FUNC static Tangent lieBracket(Tangent const&, Tangent const&) {
-    return Scalar(0);
+  /**
+   * \brief Logarithmic map
+   *
+   * \param other element of the group SO2
+   * \returns     corresponding tangent space element
+   *              (=rotation angle \f$ \theta \f$)
+   *
+   * Computes the logarithmic, the inverse of the group exponential.
+   * To be specific, this function computes \f$ \log({\cdot})^\vee \f$
+   * with \f$ \vee(\cdot) \f$ being the matrix logarithm
+   * and \f$ \vee{\cdot} \f$ the vee()-operator of SO2.
+   *
+   * \see exp()
+   * \see vee()
+   */
+  inline static
+  const Tangent log(const SO2Group<Scalar> & other) {
+    // todo: general implementation for Scalar not being float or double.
+    return atan2(other.unit_complex_.y(), other.unit_complex().x());
   }
 
-  /// Draw uniform sample from SO(2) manifold.
-  ///
-  template <class UniformRandomBitGenerator>
-  static SO2 sampleUniform(UniformRandomBitGenerator& generator) {
-    static_assert(IsUniformRandomBitGenerator<UniformRandomBitGenerator>::value,
-                  "generator must meet the UniformRandomBitGenerator concept");
-    std::uniform_real_distribution<Scalar> uniform(-Constants<Scalar>::pi(),
-                                                   Constants<Scalar>::pi());
-    return SO2(uniform(generator));
+  /**
+   * \brief vee-operator
+   *
+   * \param Omega 2x2-matrix representation of Lie algebra element
+   * \pre         Omega need to be a skew-symmetric matrix
+   * \returns     scalar representatin of Lie algebra element
+   *s
+   * This is the inverse of the hat()-operator.
+   *
+   * \see hat()
+   */
+  inline static
+  const Tangent vee(const Transformation & Omega) {
+    return static_cast<Scalar>(0.5)*(Omega(1,0) - Omega(0,1));
   }
 
-  /// vee-operator
-  ///
-  /// It takes the 2x2-matrix representation ``Omega`` and maps it to the
-  /// corresponding scalar representation of Lie algebra.
-  ///
-  /// This is the inverse of the hat()-operator, see above.
-  ///
-  /// Precondition: ``Omega`` must have the following structure:
-  ///
-  ///                |  0 -a |
-  ///                |  a  0 |
-  ///
-  SOPHUS_FUNC static Tangent vee(Transformation const& Omega) {
-    using std::abs;
-    return Omega(1, 0);
+private:
+  // Mutator of complex number is private so users are hampered
+  // from setting non-unit complex numbers.
+  EIGEN_STRONG_INLINE
+  ComplexReference unit_complex_nonconst() {
+    return static_cast<Derived*>(this)->unit_complex_nonconst();
   }
 
- protected:
-  /// Mutator of complex number is protected to ensure class invariant.
-  ///
-  SOPHUS_FUNC ComplexMember& unit_complex_nonconst() { return unit_complex_; }
-
-  ComplexMember unit_complex_;
 };
 
-}  // namespace Sophus
+/**
+ * \brief SO2 default type - Constructors and default storage for SO2 Type
+ */
+template<typename _Scalar, int _Options>
+class SO2Group : public SO2GroupBase<SO2Group<_Scalar,_Options> > {
+  typedef SO2GroupBase<SO2Group<_Scalar,_Options> > Base;
+public:
+  /** \brief scalar type */
+  typedef typename internal::traits<SO2Group<_Scalar,_Options> >
+  ::Scalar Scalar;
+  /** \brief complex number reference type */
+  typedef typename internal::traits<SO2Group<_Scalar,_Options> >
+  ::ComplexType & ComplexReference;
+  /** \brief complex number const reference type */
+  typedef const typename internal::traits<SO2Group<_Scalar,_Options> >
+  ::ComplexType & ConstComplexReference;
+
+  /** \brief degree of freedom of group */
+  static const int DoF = Base::DoF;
+  /** \brief number of internal parameters used */
+  static const int num_parameters = Base::num_parameters;
+  /** \brief group transformations are NxN matrices */
+  static const int N = Base::N;
+  /** \brief group transfomation type */
+  typedef typename Base::Transformation Transformation;
+  /** \brief point type */
+  typedef typename Base::Point Point;
+  /** \brief tangent vector type */
+  typedef typename Base::Tangent Tangent;
+  /** \brief adjoint transformation type */
+  typedef typename Base::Adjoint Adjoint;
+
+  // base is friend so unit_complex_nonconst can be accessed from base
+  friend class SO2GroupBase<SO2Group<_Scalar,_Options> >;
+
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+  /**
+   * \brief Default constructor
+   *
+   * Initialize complex number to identity rotation.
+   */
+  inline SO2Group()
+    : unit_complex_(static_cast<Scalar>(1), static_cast<Scalar>(0)) {
+  }
+
+  /**
+   * \brief Copy constructor
+   */
+  template<typename OtherDerived> inline
+  SO2Group(const SO2GroupBase<OtherDerived> & other)
+    : unit_complex_(other.unit_complex()) {
+  }
+
+  /**
+   * \brief Constructor from rotation matrix
+   *
+   * \pre rotation matrix need to be orthogonal with determinant of 1
+   */
+  inline explicit
+  SO2Group(const Transformation & R)
+    : unit_complex_(static_cast<Scalar>(0.5)*(R(0,0)+R(1,1)),
+                    static_cast<Scalar>(0.5)*(R(1,0)-R(0,1))) {
+    if (std::abs(R.determinant()-static_cast<Scalar>(1))
+        > SophusConstants<Scalar>::epsilon()) {
+      throw SophusException("det(R) is not near 1.");
+    }
+  }
+
+  /**
+   * \brief Constructor from pair of real and imaginary number
+   *
+   * \pre pair must not be zero
+   */
+  inline SO2Group(const Scalar & real, const Scalar & imag)
+    : unit_complex_(real, imag) {
+    Base::normalize();
+  }
+
+  /**
+   * \brief Constructor from 2-vector
+   *
+   * \pre vector must not be zero
+   */
+  inline explicit
+  SO2Group(const Matrix<Scalar,2,1> & complex)
+    : unit_complex_(complex) {
+    Base::normalize();
+  }
+
+  /**
+   * \brief Constructor from std::complex
+   *
+   * \pre complex number must not be zero
+   */
+  inline explicit
+  SO2Group(const std::complex<Scalar> & complex)
+    : unit_complex_(complex.real(), complex.imag()) {
+    Base::normalize();
+  }
+
+  /**
+   * \brief Constructor from an angle
+   */
+  inline explicit
+  SO2Group(Scalar theta) {
+    unit_complex_nonconst() = SO2Group<Scalar>::exp(theta).unit_complex();
+  }
+
+  /**
+   * \brief Accessor of unit complex number
+   *
+   * No direct write access is given to ensure the complex number stays
+   * normalized.
+   */
+  EIGEN_STRONG_INLINE
+  ConstComplexReference unit_complex() const {
+    return unit_complex_;
+  }
+
+protected:
+  // Mutator of complex number is protected so users are hampered
+  // from setting non-unit complex numbers.
+  EIGEN_STRONG_INLINE
+  ComplexReference unit_complex_nonconst() {
+    return unit_complex_;
+  }
+
+  static bool isNearZero(const Scalar & real, const Scalar & imag) {
+    return (real*real + imag*imag < SophusConstants<Scalar>::epsilon());
+  }
+
+  Matrix<Scalar,2,1> unit_complex_;
+};
+
+} // end namespace
+
 
 namespace Eigen {
+/**
+ * \brief Specialisation of Eigen::Map for SO2GroupBase
+ *
+ * Allows us to wrap SO2 Objects around POD array
+ * (e.g. external c style complex number)
+ */
+template<typename _Scalar, int _Options>
+class Map<Sophus::SO2Group<_Scalar>, _Options>
+    : public Sophus::SO2GroupBase<Map<Sophus::SO2Group<_Scalar>, _Options> > {
+  typedef Sophus::SO2GroupBase<Map<Sophus::SO2Group<_Scalar>, _Options> > Base;
 
-/// Specialization of Eigen::Map for ``SO2``; derived from SO2Base.
-///
-/// Allows us to wrap SO2 objects around POD array (e.g. external c style
-/// complex number / tuple).
-template <class Scalar_, int Options>
-class Map<Sophus::SO2<Scalar_>, Options>
-    : public Sophus::SO2Base<Map<Sophus::SO2<Scalar_>, Options>> {
- public:
-  using Base = Sophus::SO2Base<Map<Sophus::SO2<Scalar_>, Options>>;
-  using Scalar = Scalar_;
+public:
+  /** \brief scalar type */
+  typedef typename internal::traits<Map>::Scalar Scalar;
+  /** \brief complex number reference type */
+  typedef typename internal::traits<Map>::ComplexType & ComplexReference;
+  /** \brief complex number const reference type */
+  typedef const typename internal::traits<Map>::ComplexType &
+  ConstComplexReference;
 
-  using Transformation = typename Base::Transformation;
-  using Point = typename Base::Point;
-  using HomogeneousPoint = typename Base::HomogeneousPoint;
-  using Tangent = typename Base::Tangent;
-  using Adjoint = typename Base::Adjoint;
+  /** \brief degree of freedom of group */
+  static const int DoF = Base::DoF;
+  /** \brief number of internal parameters used */
+  static const int num_parameters = Base::num_parameters;
+  /** \brief group transformations are NxN matrices */
+  static const int N = Base::N;
+  /** \brief group transfomation type */
+  typedef typename Base::Transformation Transformation;
+  /** \brief point type */
+  typedef typename Base::Point Point;
+  /** \brief tangent vector type */
+  typedef typename Base::Tangent Tangent;
+  /** \brief adjoint transformation type */
+  typedef typename Base::Adjoint Adjoint;
 
-  /// ``Base`` is friend so unit_complex_nonconst can be accessed from ``Base``.
-  friend class Sophus::SO2Base<Map<Sophus::SO2<Scalar_>, Options>>;
+  // base is friend so unit_complex_nonconst can be accessed from base
+  friend class Sophus::SO2GroupBase<Map<Sophus::SO2Group<_Scalar>, _Options> >;
 
-  // LCOV_EXCL_START
-  SOPHUS_INHERIT_ASSIGNMENT_OPERATORS(Map);
-  // LCOV_EXCL_STOP
-
+  EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR(Map)
   using Base::operator*=;
   using Base::operator*;
 
-  SOPHUS_FUNC
-  Map(Scalar* coeffs) : unit_complex_(coeffs) {}
+  EIGEN_STRONG_INLINE
+  Map(Scalar* coeffs) : unit_complex_(coeffs) {
+  }
 
-  /// Accessor of unit complex number.
-  ///
-  SOPHUS_FUNC
-  Map<Sophus::Vector2<Scalar>, Options> const& unit_complex() const {
+  /**
+   * \brief Accessor of unit complex number
+   *
+   * No direct write access is given to ensure the complex number stays
+   * normalized.
+   */
+  EIGEN_STRONG_INLINE
+  ConstComplexReference unit_complex() const {
     return unit_complex_;
   }
 
- protected:
-  /// Mutator of unit_complex is protected to ensure class invariant.
-  ///
-  SOPHUS_FUNC
-  Map<Sophus::Vector2<Scalar>, Options>& unit_complex_nonconst() {
+protected:
+  // Mutator of complex number is protected so users are hampered
+  // from setting non-unit complex number.
+  EIGEN_STRONG_INLINE
+  ComplexReference unit_complex_nonconst() {
     return unit_complex_;
   }
 
-  Map<Matrix<Scalar, 2, 1>, Options> unit_complex_;
+  Map<Matrix<Scalar,2,1>,_Options> unit_complex_;
 };
 
-/// Specialization of Eigen::Map for ``SO2 const``; derived from SO2Base.
-///
-/// Allows us to wrap SO2 objects around POD array (e.g. external c style
-/// complex number / tuple).
-template <class Scalar_, int Options>
-class Map<Sophus::SO2<Scalar_> const, Options>
-    : public Sophus::SO2Base<Map<Sophus::SO2<Scalar_> const, Options>> {
- public:
-  using Base = Sophus::SO2Base<Map<Sophus::SO2<Scalar_> const, Options>>;
-  using Scalar = Scalar_;
-  using Transformation = typename Base::Transformation;
-  using Point = typename Base::Point;
-  using HomogeneousPoint = typename Base::HomogeneousPoint;
-  using Tangent = typename Base::Tangent;
-  using Adjoint = typename Base::Adjoint;
+/**
+ * \brief Specialisation of Eigen::Map for const SO2GroupBase
+ *
+ * Allows us to wrap SO2 Objects around POD array
+ * (e.g. external c style complex number)
+ */
+template<typename _Scalar, int _Options>
+class Map<const Sophus::SO2Group<_Scalar>, _Options>
+    : public Sophus::SO2GroupBase<
+    Map<const Sophus::SO2Group<_Scalar>, _Options> > {
+  typedef Sophus::SO2GroupBase<Map<const Sophus::SO2Group<_Scalar>, _Options> >
+  Base;
 
+public:
+  /** \brief scalar type */
+  typedef typename internal::traits<Map>::Scalar Scalar;
+  /** \brief complex number const reference type */
+  typedef const typename internal::traits<Map>::ComplexType &
+  ConstComplexReference;
+
+
+  /** \brief degree of freedom of group */
+  static const int DoF = Base::DoF;
+  /** \brief number of internal parameters used */
+  static const int num_parameters = Base::num_parameters;
+  /** \brief group transformations are NxN matrices */
+  static const int N = Base::N;
+  /** \brief group transfomation type */
+  typedef typename Base::Transformation Transformation;
+  /** \brief point type */
+  typedef typename Base::Point Point;
+  /** \brief tangent vector type */
+  typedef typename Base::Tangent Tangent;
+  /** \brief adjoint transformation type */
+  typedef typename Base::Adjoint Adjoint;
+
+  EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR(Map)
   using Base::operator*=;
   using Base::operator*;
 
-  SOPHUS_FUNC Map(Scalar const* coeffs) : unit_complex_(coeffs) {}
+  EIGEN_STRONG_INLINE
+  Map(const Scalar* coeffs) : unit_complex_(coeffs) {
+  }
 
-  /// Accessor of unit complex number.
-  ///
-  SOPHUS_FUNC Map<Sophus::Vector2<Scalar> const, Options> const& unit_complex()
-      const {
+  /**
+   * \brief Accessor of unit complex number
+   *
+   * No direct write access is given to ensure the complex number stays
+   * normalized.
+   */
+  EIGEN_STRONG_INLINE
+  ConstComplexReference unit_complex() const {
     return unit_complex_;
   }
 
- protected:
-  /// Mutator of unit_complex is protected to ensure class invariant.
-  ///
-  Map<Matrix<Scalar, 2, 1> const, Options> const unit_complex_;
+protected:
+  const Map<const Matrix<Scalar,2,1>,_Options> unit_complex_;
 };
-}  // namespace Eigen
 
-#endif  // SOPHUS_SO2_HPP
+}
+
+
+#endif // SOPHUS_SO2_HPP
