@@ -54,8 +54,6 @@ set(lama_SOURCES
 add_library(${PROJECT_NAME} ${lama_SOURCES})
 target_compile_options(${PROJECT_NAME} PRIVATE -Wall)
 
-
-
 if(COMPILING_WITH_CATKIN)
     install(TARGETS ${PROJECT_NAME}
       ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
@@ -66,6 +64,15 @@ if(COMPILING_WITH_CATKIN)
       DESTINATION ${CATKIN_GLOBAL_INCLUDE_DESTINATION}/lama
       PATTERN ".svn" EXCLUDE
     )
+elseif(COMPILING_WITH_AMENT)
+    install(TARGETS ${PROJECT_NAME}
+        ARCHIVE DESTINATION lib
+        LIBRARY DESTINATION lib
+        RUNTIME DESTINATION lib
+        INCLUDES DESTINATION include)
+    install(DIRECTORY ../include/lama/
+        DESTINATION include/lama
+        PATTERN ".svn" EXCLUDE)
 else()
     export(TARGETS ${PROJECT_NAME} FILE iris_lamaConfig.cmake)
     set(CMAKE_EXPORT_PACKAGE_REGISTRY ON)
