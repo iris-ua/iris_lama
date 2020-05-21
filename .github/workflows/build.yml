@@ -1,0 +1,15 @@
+name: Build
+on: [push, pull_request]
+
+jobs:
+  build:
+    name: Build with CMake
+    runs-on: ubuntu-18.04
+    steps:
+    - uses: actions/checkout@v2
+    - name: deps
+      run: sudo apt-get install libeigen3-dev
+    - name: configure
+      run: mkdir build && cd build && cmake ..
+    - name: build
+      run: cmake --build build
