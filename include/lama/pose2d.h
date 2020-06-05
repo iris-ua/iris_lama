@@ -41,6 +41,7 @@
 namespace lama  {
 
 struct Pose2D {
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
     Pose2D();
     Pose2D(const double& x, const double& y, const double& rotation);

@@ -41,6 +41,7 @@
 namespace lama {
 
 struct Pose3D {
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
     Pose3D();
     Pose3D(const double& x, const double& y, const double& z,

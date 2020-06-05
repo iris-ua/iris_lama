@@ -97,6 +97,8 @@ struct KeyHash {
 typedef std::unordered_set<Vector3ui, KeyHash> KeySet;
 
 struct PointCloudXYZ {
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
     typedef std::shared_ptr<PointCloudXYZ> Ptr;
 
     std::vector<Vector3d> points;

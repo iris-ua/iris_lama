@@ -57,6 +57,7 @@ namespace lama {
  */
 class Map {
 public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
     // The larger integer coordinate that a patch can have is ruled by the universal
     // constant, i.e. index < UNIVERSAL_CONSTANT. The universal constant bound can be calculated
