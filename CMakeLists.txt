@@ -8,7 +8,7 @@ elseif( DEFINED ENV{AMENT_PREFIX_PATH})
         set(COMPILING_WITH_AMENT 1)
 endif()
 
-set(CMAKE_CXX_STANDARD 11) # use c++11
+set(CMAKE_CXX_STANDARD 14) # use c++14
 
 find_package(Eigen 3 QUIET)
 if(NOT Eigen_FOUND)
