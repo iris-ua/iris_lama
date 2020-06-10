@@ -47,6 +47,7 @@ namespace lama {
 
 class Slam2D {
 public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
     typedef Solver::Options SolverOptions;
 

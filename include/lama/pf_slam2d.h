@@ -43,12 +43,15 @@
 #include "sdm/dynamic_distance_map.h"
 #include "sdm/frequency_occupancy_map.h"
 
+#include <Eigen/StdVector>
+
 namespace lama {
 
 struct ThreadPool;
 
 class PFSlam2D {
 public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
     typedef Solver::Options SolverOptions;
 
@@ -62,6 +65,7 @@ public:
 public:
 
     struct Particle {
+        EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
         // The weight of the particle
         double weight;
