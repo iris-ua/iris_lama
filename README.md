@@ -46,16 +46,16 @@ Currently it has the following grid maps implemented:
 
 
 For more information about **SDM** please read
-> Eurico Pedrosa, Artur Pereira, Nuno Lau
-> A Sparse-Dense Approach for Efficient Grid Mapping
+> Eurico Pedrosa, Artur Pereira, Nuno Lau\
+> **A Sparse-Dense Approach for Efficient Grid Mapping**\
 > 2018 IEEE International Conference on Autonomous Robot Systems and Competitions (ICARSC)
 
 Localization based on Scan Matching
 -----------------------------------
 We provide a **fast** scan matching approach to mobile robot localization supported by a continuous likelihood field. It can be used to provide accurate localization for robots equipped with a laser and a *not so good* odometry. Nevertheless, a good odometry is always recommended.
 
-> Eurico Pedrosa, Artur Pereira, Nuno Lau
-> Efficient Localization Based on Scan Matching with a Continuous Likelihood Field
+> Eurico Pedrosa, Artur Pereira, Nuno Lau\
+> **Efficient Localization Based on Scan Matching with a Continuous Likelihood Field**\
 > 2017 IEEE International Conference on Autonomous Robot Systems and Competitions (ICARSC)
 
 Online SLAM
@@ -64,8 +64,8 @@ Online SLAM
 For environments without considerable loops this solution can be accurate and very efficient. It can run in *real time* even on a low-spec computer (we have it running on a turtlebot with a raspberry pi 3B+). It uses our localization algorithm combined with a dynamic likelihood field to incrementally build an occupancy map.
 
 For more information please read
-> Eurico Pedrosa, Artur Pereira, Nuno Lau
-> **A Non-Linear Least Squares Approach to SLAM using a Dynamic Likelihood Field**
+> Eurico Pedrosa, Artur Pereira, Nuno Lau\
+> **A Non-Linear Least Squares Approach to SLAM using a Dynamic Likelihood Field**\
 > Journal of Intelligent & Robotic Systems 93 (3-4), 519-532
 
 Multi-threaded Particle Filter SLAM
@@ -76,7 +76,7 @@ This Particle Filter SLAM is a RBPF SLAM like [GMapping](https://openslam-org.gi
 Even without multi-threading, our solutions is a lightweight competitor against the heavyweight [GMapping](https://openslam-org.github.io/).
 
 For more information please read
->Eurico Pedrosa, Artur Pereira, Nuno Lau
-> **Fast Grid SLAM Based on Particle Filter with Scan Matching and Multithreading**
+>Eurico Pedrosa, Artur Pereira, Nuno Lau\
+> **Fast Grid SLAM Based on Particle Filter with Scan Matching and Multithreading**\
 > 2020 IEEE International Conference on Autonomous Robot Systems and Competitions (ICARSC), Ponta Delgada, Portugal, 2020, pp. 194-199, doi: 10.1109/ICARSC49921.2020.9096191.
 
