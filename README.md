@@ -75,3 +75,8 @@ This Particle Filter SLAM is a RBPF SLAM like [GMapping](https://openslam-org.gi
 
 Even without multi-threading, our solutions is a lightweight competitor against the heavyweight [GMapping](https://openslam-org.github.io/).
 
+For more information please read
+>Eurico Pedrosa, Artur Pereira, Nuno Lau
+> **Fast Grid SLAM Based on Particle Filter with Scan Matching and Multithreading**
+> 2020 IEEE International Conference on Autonomous Robot Systems and Competitions (ICARSC), Ponta Delgada, Portugal, 2020, pp. 194-199, doi: 10.1109/ICARSC49921.2020.9096191.
+
