@@ -161,6 +161,7 @@ void lama::Loc2D::globalLocalization(const PointCloudXYZ::Ptr& surface)
                 continue;
 
             a = random::uniform() * 2 * M_PI - M_PI;
+            break;
         }
 
         Pose2D p(x, y , a);
