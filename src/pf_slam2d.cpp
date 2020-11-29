@@ -113,6 +113,7 @@ lama::PFSlam2D::PFSlam2D(const Options& options)
 
     has_first_scan = false;
     truncated_ray_ = options.truncated_ray;
+    truncated_range_ = options.truncated_range;
 
     acc_trans_ = 0.0;
     acc_rot_   = 0.0;
@@ -461,20 +462,47 @@ void lama::PFSlam2D::updateParticleMaps(Particle* particle)
     VectorVector3ui free;
 
     // generate the ray casts
-    for (size_t i = 0; i < num_points; ++i){
+    for (size_t i = 0; i < num_points; ++i)
+    {
         Vector3d start = wso;
-        Vector3d hit   = tf * surface->points[i];
+        Vector3d hit = tf * surface->points[i];
+        Vector3d AB;
+        double ray_length;
+        bool mark_hit = true;
 
-        if (truncated_ray_ > 0.0){
-            Vector3d AB = hit - wso;
-            double truncate_size = std::min(AB.norm(), truncated_ray_);
-            start = hit - AB.normalized() * truncate_size;
+        // Attempt to truncate the ray if it is larger than the truncated range
+        if (truncated_range_ > 0.0)
+        {
+            AB = hit - start;
+            ray_length = AB.norm();
+            if (truncated_range_ < ray_length)
+            {
+                // Truncate the hit point and choose not to mark an obstacle for it
+                hit = start + AB / ray_length * truncated_range_;
+                mark_hit = false;
+            }
+        }
+
+        // Only attempt to truncate a ray if the hit should be marked. If the hit
+        // should not be marked then the range has already been truncated
+        if (mark_hit and (truncated_ray_ > 0.0))
+        {
+            // Avoid computing the AB vector again if it has already been calculated
+            if (truncated_range_ == 0.0)
+            {
+                AB = hit - start;
+                ray_length = AB.norm();
+            }
+            if (truncated_ray_ < ray_length)
+                start = hit - AB / ray_length * truncated_ray_;
         }
 
         Vector3ui mhit = particle->occ->w2m(hit);
-
-        bool changed = particle->occ->setOccupied(mhit);
-        if ( changed ) particle->dm->addObstacle(mhit);
+        if (mark_hit)
+        {
+            bool changed = particle->occ->setOccupied(mhit);
+            if ( changed ) particle->dm->addObstacle(mhit);
+        }
 
         particle->occ->computeRay(particle->occ->w2m(start), mhit, free);
     }
