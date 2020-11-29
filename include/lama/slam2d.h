@@ -101,6 +101,9 @@ public:
         double l2_max = 0.5;
         /// If != from zero, truncate the ray lenght (includes the endpoint).
         double truncated_ray = 0.0;
+        /// If != from zero and ray length > truncated_range, truncate the ray from the
+        /// starting point and do not add an obstacle for the hit
+        double truncated_range = 0.0;
         /// Resolutions of the maps.
         double resolution = 0.05;
         /// The side size of a patch.
@@ -177,6 +180,7 @@ private:
 
     uint32_t number_of_proccessed_cells_;
     double truncated_ray_;
+    double truncated_range_;
 };
 
 } /* lama */
