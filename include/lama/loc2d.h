@@ -100,7 +100,7 @@ public:
 
     bool enoughMotion(const Pose2D& odometry);
 
-    bool update(const PointCloudXYZ::Ptr& surface, const Pose2D& odometry, double timestamp);
+    bool update(const PointCloudXYZ::Ptr& surface, const Pose2D& odometry, double timestamp, bool force_update = false);
 
     void triggerGlobalLocalization();
 

@@ -89,22 +89,25 @@ bool lama::Loc2D::enoughMotion(const Pose2D& odometry)
     return true;
 }
 
-bool lama::Loc2D::update(const PointCloudXYZ::Ptr& surface, const Pose2D& odometry, double timestamp)
+bool lama::Loc2D::update(const PointCloudXYZ::Ptr& surface, const Pose2D& odometry, double timestamp, bool force_update)
 {
-    if (not has_first_scan){
+    if (not has_first_scan) {
         odom_ = odometry;
 
         has_first_scan = true;
-        return true;
+
+        // Return here if the update should not be enforced
+        if (not force_update)
+            return true;
     }
 
     // 1. Predict from odometry
     Pose2D odelta = odom_ - odometry;
     Pose2D ppose  = pose_ + odelta;
 
-    // only continue if the necessary motion was gathered.
-    if (odelta.xy().norm() <= trans_thresh_ &&
-        std::abs(odelta.rotation()) <= rot_thresh_)
+    // Only continue if the necessary motion was gathered or if
+    // the update should be enforced
+    if (not force_update and not enoughMotion(odometry))
         return false;
 
     pose_ = ppose;
