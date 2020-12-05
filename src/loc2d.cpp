@@ -50,6 +50,9 @@ lama::Loc2D::Options::Options()
     l2_max       = 1.0;
     resolution   = 0.05;
     patch_size   = 32;
+    gloc_particles = 3000;
+    gloc_iters   = 10;
+    gloc_thresh  = 0.15;
     max_iter     = 100;
 }
 
@@ -68,9 +71,16 @@ void lama::Loc2D::Init(const Options& options)
 
     trans_thresh_ = options.trans_thresh;
     rot_thresh_   = options.rot_thresh;
+    rmse_ = 0.0;
 
     has_first_scan = false;
     do_global_localization_ = false;
+
+    gloc_particles_ = options.gloc_particles;
+    gloc_thresh_ = options.gloc_thresh;
+
+    gloc_iters_ = options.gloc_iters;
+    gloc_cur_iter_ = 0;
 }
 
 lama::Loc2D::~Loc2D()
@@ -99,6 +109,11 @@ bool lama::Loc2D::update(const PointCloudXYZ::Ptr& surface, const Pose2D& odomet
         // Return here if the update should not be enforced
         if (not force_update)
             return true;
+
+        MatchSurface2D match_surface(distance_map, surface, pose_.state);
+        VectorXd residuals;
+        match_surface.eval(residuals, 0);
+        rmse_ = sqrt(residuals.squaredNorm()/((double)(surface->points.size() - 1)));
     }
 
     // 1. Predict from odometry
@@ -113,25 +128,36 @@ bool lama::Loc2D::update(const PointCloudXYZ::Ptr& surface, const Pose2D& odomet
     pose_ = ppose;
     odom_ = odometry;
 
-    if (do_global_localization_)
-        globalLocalization(surface);
+    if (do_global_localization_){
+        // Use a maximum number of global localizations to prevent an infinity loop.
+        if (gloc_cur_iter_ < gloc_iters_){
+            gloc_cur_iter_++;
+
+            // pose_ is set by the calle.
+            globalLocalization(surface);
+        } else {
+            do_global_localization_ = false;
+            gloc_cur_iter_ = 0;
+        }// end if
+    }// end if
 
     // 2. Optimize
     MatchSurface2D match_surface(distance_map, surface, pose_.state);
     Solve(solver_options_, match_surface, 0);
-
-    //--
-    if (do_global_localization_){
-        VectorXd residuals;
-        match_surface.eval(residuals, 0);
-        double rmse = sqrt(residuals.squaredNorm()/((double)(surface->points.size() - 1)));
-
-        if (rmse < 0.15)
-            do_global_localization_ = false;
-    }
-    //--
-
     pose_.state = match_surface.getState();
+
+    VectorXd residuals;
+    match_surface.eval(residuals, 0);
+    rmse_ = sqrt(residuals.squaredNorm()/((double)(surface->points.size() - 1)));
+
+    if (do_global_localization_){
+        // evalute the scan mathing
+        if (rmse_ < gloc_thresh_){
+            do_global_localization_ = false;
+            gloc_cur_iter_ = 0;
+        }// end if
+
+    }
 
     return true;
 }
@@ -151,8 +177,7 @@ void lama::Loc2D::globalLocalization(const PointCloudXYZ::Ptr& surface)
 
     double best_error = std::numeric_limits<double>::max();
 
-    const size_t numOfParticles = 3000;
-    for (size_t i = 0; i < numOfParticles; ++i){
+    for (uint32_t i = 0; i < gloc_particles_; ++i){
 
         double x, y, a;
 
