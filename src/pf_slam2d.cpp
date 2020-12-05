@@ -467,7 +467,7 @@ void lama::PFSlam2D::updateParticleMaps(Particle* particle)
         Vector3d start = wso;
         Vector3d hit = tf * surface->points[i];
         Vector3d AB;
-        double ray_length;
+        double ray_length = 1.0; // this will be overwritten but gcc fails to notice.
         bool mark_hit = true;
 
         // Attempt to truncate the ray if it is larger than the truncated range
