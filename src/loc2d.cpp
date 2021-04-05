@@ -73,6 +73,8 @@ void lama::Loc2D::Init(const Options& options)
     rot_thresh_   = options.rot_thresh;
     rmse_ = 0.0;
 
+    cov_.setIdentity(); // maybe it should be higher??
+
     has_first_scan = false;
     do_global_localization_ = false;
 
@@ -142,9 +144,11 @@ bool lama::Loc2D::update(const PointCloudXYZ::Ptr& surface, const Pose2D& odomet
     }// end if
 
     // 2. Optimize
+    MatrixXd cov;
     MatchSurface2D match_surface(distance_map, surface, pose_.state);
-    Solve(solver_options_, match_surface, 0);
+    Solve(solver_options_, match_surface, &cov);
     pose_.state = match_surface.getState();
+    cov_ = cov;
 
     VectorXd residuals;
     match_surface.eval(residuals, 0);
