@@ -2,6 +2,10 @@
 Changelog for package iris_lama
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+1.2.0 (2021-04-10)
+-----------
+* Expose localization covariance
+
 1.1.0 (2020-12-05)
 -----------
 * Expose the global localization parameters as options
