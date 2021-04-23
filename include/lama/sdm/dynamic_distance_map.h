@@ -46,7 +46,7 @@ class DynamicDistanceMap : public DistanceMap {
 public:
 
     struct distance_t {
-        Vector3ui obstacle;
+        Vector3s obstacle;
         uint16_t sqdist;
         bool valid_obstacle;
         bool is_queued;
