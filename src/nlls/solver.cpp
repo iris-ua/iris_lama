@@ -81,9 +81,12 @@ void lama::Solver::solve(Problem& problem, MatrixXd* cov)
 
         // 3. do optimization step
         h = strategy->step(r, J);
-        problem.update(h);
+        if (strategy->stop())
+            // convergence has been reached.
+            break;
 
-        // 4. verify step validity
+        // 4. update and verify step validity
+        problem.update(h);
         problem.eval(ur, 0);
 
         const int32_t rows = r.rows();
