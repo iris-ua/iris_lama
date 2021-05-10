@@ -339,6 +339,16 @@ void lama::Map::visit_all_cells(const CellWalker& walker) const
     }// end for_all
 }
 
+void lama::Map::visit_all_patches(const CellWalker& walker) const
+{
+    for (auto& it : patches){
+        auto id = it.first;
+        Vector3ui anchor = unhash(id, UNIVERSAL_CONSTANT) * patch_length;
+
+        walker(anchor);
+    }// end for_all
+}
+
 // == Protected ====================================================================================
 
 uint8_t* lama::Map::get(const Vector3ui& coordinates)
@@ -455,6 +465,37 @@ uint64_t lama::Map::hash(const Vector3ui& coordinates) const
         return coordinates(2) + 2642244ul * ( coordinates(1) + coordinates(0) * 2642244ul);
 
     return coordinates(1) + coordinates(0) * 2642244ul;
+}
+
+bool lama::Map::deletePatchAt(const Vector3ui& coordinates)
+{
+    uint64_t idx;
+    Vector3ul rcd = (coordinates / patch_length).template cast<uint64_t>();
+
+    if (is_3d)
+        idx = rcd(2) + UNIVERSAL_CONSTANT * ( rcd(1) + rcd(0) * UNIVERSAL_CONSTANT);
+    else
+        idx = rcd(1) + rcd(0) * UNIVERSAL_CONSTANT;
+
+    auto p = patches.find(idx);
+    if ( p == patches.end() )
+        // The patch does not exist
+        return false;
+
+    // If we are using compression, we may need to remove the patch from
+    // the LRU cache.
+    if (use_compression_){
+        auto it = lru_items_map_.find(idx);
+        if ( it != lru_items_map_.end() ){
+            lru_items_list_.erase(it->second);
+            lru_items_map_.erase(it);
+        }// end if
+    }// end if
+
+    // delete the patch
+    patches.erase(p);
+
+    return true;
 }
 
 bool lama::Map::write(const std::string& filename) const

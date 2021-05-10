@@ -35,6 +35,7 @@
 
 #include "lama/print.h"
 #include "lama/time.h"
+#include "lama/aabb.h"
 
 #include "lama/nlls/gauss_newton.h"
 #include "lama/nlls/levenberg_marquardt.h"
@@ -111,6 +112,8 @@ lama::Slam2D::Slam2D(const Options& options)
     number_of_proccessed_cells_ = 0;
     truncated_ray_ = options.truncated_ray;
     truncated_range_ = options.truncated_range;
+
+    transient_map_ = options.transient_map;
 
     if (options.create_summary)
         summary = new Summary();
@@ -258,9 +261,15 @@ void lama::Slam2D::updateMaps(const PointCloudXYZ::Ptr& surface)
     // 2. generate the free and occupied positions.
     VectorVector3ui free;
 
+    // This will be used to calculate the surface AABB.
+    Vector3ui min, max;
+    min.fill(std::numeric_limits<Vector3ui::Scalar>::max());
+    max.fill(std::numeric_limits<Vector3ui::Scalar>::min());
+
+    Dictionary<uint64_t, bool> seen;
+
     // generate the ray casts
-    for (size_t i = 0; i < num_points; ++i)
-    {
+    for (size_t i = 0; i < num_points; ++i){
         Vector3d start = wso;
         Vector3d hit = tf * surface->points[i];
         Vector3d AB;
@@ -268,35 +277,36 @@ void lama::Slam2D::updateMaps(const PointCloudXYZ::Ptr& surface)
         bool mark_hit = true;
 
         // Attempt to truncate the ray if it is larger than the truncated range
-        if (truncated_range_ > 0.0)
-        {
+        if (truncated_range_ > 0.0){
             AB = hit - start;
             ray_length = AB.norm();
-            if (truncated_range_ < ray_length)
-            {
+            if (truncated_range_ < ray_length){
                 // Truncate the hit point and choose not to mark an obstacle for it
                 hit = start + AB / ray_length * truncated_range_;
                 mark_hit = false;
             }
-        }
+        }// end if
 
         // Only attempt to truncate a ray if the hit should be marked. If the hit
         // should not be marked then the range has already been truncated
-        if (mark_hit and (truncated_ray_ > 0.0))
-        {
+        if (mark_hit and (truncated_ray_ > 0.0)) {
             // Avoid computing the AB vector again if it has already been calculated
-            if (truncated_range_ == 0.0)
-            {
+            if (truncated_range_ == 0.0) {
                 AB = hit - start;
                 ray_length = AB.norm();
-            }
+            }// end if
+
             if (truncated_ray_ < ray_length)
                 start = hit - AB / ray_length * truncated_ray_;
         }
 
         Vector3ui mhit = occupancy_map_->w2m(hit);
-        if (mark_hit)
-        {
+        if (transient_map_){
+            min = min.cwiseMin(mhit);
+            max = max.cwiseMax(mhit);
+        }
+
+        if (mark_hit){
             bool changed = occupancy_map_->setOccupied(mhit);
             if ( changed ) distance_map_->addObstacle(mhit);
         }
@@ -312,5 +322,44 @@ void lama::Slam2D::updateMaps(const PointCloudXYZ::Ptr& surface)
 
     // 3. Update the distance map
     number_of_proccessed_cells_ = distance_map_->update();
+
+    // 4. Transient map (if enabled)
+    // When this option is enabled, we only keep the most recent portion of the
+    // map "sensed" by the latest surface. To do that, we create an axis aligned
+    // bounding box (AABB) of the surface and test it for intersection with the
+    // AABB of each existing patch. Patches with AABBs that do not intersect with
+    // the surface AABB are deleted.
+    if (not transient_map_) return;
+
+    // make sure the Z coordinate is zero (2D remember?).
+    min(2) = max(2) = 0;
+
+    // Axis Aligned Bounding box of the current surface (or lidar scan).
+    AABB a(min, max);
+
+    // expand the AABB by twice the maximum distance of distance map.
+    a.hwidth.array() += 2.0 * (distance_map_->maxDistance() / distance_map_->resolution);
+
+    // We use the distance map for intersection test because its bounds are larger than
+    // the occupancy map bounds. This way, we make sure all unecessary patches are removed.
+    VectorVector3ui to_remove;
+    distance_map_->visit_all_patches([&a, &min, &max, &to_remove, this](auto& origin){
+        const uint32_t volume = this->occupancy_map_->patch_volume;
+        const uint32_t length = this->occupancy_map_->patch_length;
+
+        AABB b(origin, origin + occupancy_map_->unhash(volume - 1, length));
+
+        bool intersect = a.testIntersection(b);
+        if ( intersect ) return;
+
+        // It is not a good idea to remove an item from a container while iterating over it.
+        // Therefore, we push the patch origin so we can delete it afterwards.
+        to_remove.push_back(origin);
+    });
+
+    for (auto& coord : to_remove){
+        occupancy_map_->deletePatchAt(coord);
+        distance_map_->deletePatchAt(coord);
+    }
 }
 

@@ -118,6 +118,8 @@ public:
         uint32_t cache_size = 100;
         /// Compression algorithm to use when compression is activated
         std::string calgorithm = "lz4";
+        // Only keep the most recent area of the map.
+        bool transient_map = false;
         /// Save data to create an execution summary.
         bool create_summary = false;
     };
@@ -181,6 +183,8 @@ private:
     uint32_t number_of_proccessed_cells_;
     double truncated_ray_;
     double truncated_range_;
+
+    bool transient_map_;
 };
 
 } /* lama */

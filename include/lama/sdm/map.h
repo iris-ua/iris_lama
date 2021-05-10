@@ -167,6 +167,10 @@ public:
                         const std::string& algorithm = "lz4");
 
     uint64_t hash(const Vector3ui& coordinates) const;
+    Vector3ui unhash(uint64_t idx, uint64_t stride = UNIVERSAL_CONSTANT) const;
+
+    // Delete the patch that contains the given coordinates.
+    bool deletePatchAt(const Vector3ui& coordinates);
 
     /**
      * Write map to a file.
@@ -205,6 +209,15 @@ public:
     /// Lambdas are great for this.
     void visit_all_cells(const CellWalker& walker);
     void visit_all_cells(const CellWalker& walker) const;
+
+    /// A patch walker is a function that is called with the
+    /// "origin" coordinates of an existing patch. The "origin"
+    /// coordinates is in the global coordinates.
+    typedef std::function<void(const Vector3ui&)> PatchWalker;
+
+    /// Visit all existing patches and call the walker (or visitor) function
+    /// for each individual patch.
+    void visit_all_patches(const PatchWalker& walker) const;
 
 protected:
 
@@ -264,9 +277,6 @@ protected:
 
 
 private:
-
-    //Vector3ui unhash(uint64_t idx) const;
-    Vector3ui unhash(uint64_t idx, uint64_t stride = UNIVERSAL_CONSTANT) const;
 
     bool lru_key_exists(uint64_t idx) const;
     void lru_put(uint64_t idx, COWPtr< Container >* container) const;
