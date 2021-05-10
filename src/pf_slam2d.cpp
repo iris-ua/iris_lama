@@ -400,19 +400,12 @@ double lama::PFSlam2D::calculateLikelihood(const Particle& particle)
     trans << particle.pose.x(), particle.pose.y(), 0.0;
 
     Affine3d fixed_tf = Translation3d(trans) * AngleAxisd(particle.pose.rotation(), Vector3d::UnitZ());
-
-    PointCloudXYZ::Ptr cloud(new PointCloudXYZ);
-    const size_t num_points = surface->points.size();
-    //== transform point cloud
     Affine3d tf = fixed_tf * moving_tf;
-    cloud->points.reserve(num_points);
-    for (size_t i = 0; i < num_points; ++i)
-        cloud->points.push_back(tf * surface->points[i]);
-    //==
 
+    const size_t num_points = surface->points.size();
     double likelihood = 0;
     for (size_t i = 0; i < num_points; ++i){
-        Vector3d hit = cloud->points[i];
+        Vector3d hit = tf * surface->points[i];
         double dist = particle.dm->distance(hit, 0);
         likelihood += - (dist*dist) / options_.meas_sigma;
     } // end for
