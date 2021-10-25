@@ -35,6 +35,7 @@
 
 #include "lama/types.h"
 #include "lama/buffer_compressor.h"
+#include "lama/node_mask.h"
 
 namespace lama {
 
@@ -54,7 +55,11 @@ struct Container {
     // But because data can be compressed we need its actual size;
     uint32_t actual_memory_size = 0;
 
-    Container() = default;
+    // Bitmask that keeps tracking of the cells that were access.
+    // This allows for faster iteration of the "known" cells.
+    Mask mask;
+
+    Container(uint32_t log2dim);
     Container(const Container& other);
 
     virtual ~Container();
@@ -92,7 +97,10 @@ struct Container {
     //T* get(uint32_t idx);
 
     inline uint8_t* get(uint32_t idx)
-    { return (data + idx * element_size); }
+    {
+        if (!mask.isOn(idx)) mask.setOn(idx);
+        return (data + idx * element_size);
+    }
 
     /**
      * Access data by index (constant version).
@@ -105,8 +113,11 @@ struct Container {
      */
     //const T* get(uint32_t idx) const;
 
-    const uint8_t* get(uint32_t idx) const
-    { return (data + idx * element_size); }
+    inline const uint8_t* get(uint32_t idx) const
+    {
+        if (!mask.isOn(idx)) return nullptr;
+        return (data + idx * element_size);
+    }
 
     bool compress(BufferCompressor* bc, char* buffer);
     bool decompress(BufferCompressor* bc);

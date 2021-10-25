@@ -10,6 +10,12 @@ endif()
 
 set(CMAKE_CXX_STANDARD 14) # use c++14
 
+option(COMPILE_WITH_SSE "Compile with sse4.1 for faster code" ON)
+if (COMPILE_WITH_SSE)
+    add_compile_options(-msse4.1)
+endif()
+
+
 find_package(Eigen 3 QUIET)
 if(NOT Eigen_FOUND)
   include(${PROJECT_SOURCE_DIR}/cmake/FindEigen3.cmake)

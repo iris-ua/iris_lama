@@ -42,15 +42,17 @@
 lama::Map::Map(double resolution, size_t cell_size, uint32_t patch_size, bool is3d) :
     resolution(resolution), scale(1.0/ resolution),
     cell_memory_size(cell_size),
-    patch_length(patch_size),
-    patch_volume( patch_size * patch_size * (is3d ? patch_size : 1.0)),
+    patch_length( 1 << ((int)log2(patch_size)) ),
+    patch_volume( patch_length * patch_length * (is3d ? patch_length : 1.0)),
     is_3d(is3d)
 {
+    log2dim = (int)log2(patch_length);
+
     // Having always positive map coordinates simplifies the access to the
     // data. Therefore we adjust the origin of the world to be the half the maximum
     // positive map coordinate.
     Vector3d adjust;
-    adjust.fill(UNIVERSAL_CONSTANT / 2);
+    adjust.fill(UNIVERSAL_CONSTANT >> 1);
 
     tf_     = Translation3d(adjust * patch_length) * Scaling(scale);
     tf_inv_ = tf_.inverse();
@@ -73,6 +75,8 @@ lama::Map::Map(const Map& other) :
     patch_volume(other.patch_volume),
     is_3d(other.is_3d)
 {
+    log2dim = (int)log2(patch_length);
+
     tf_ = other.tf_;
     tf_inv_ = other.tf_inv_;
 
@@ -136,8 +140,7 @@ void lama::Map::bounds(Vector3ui& min, Vector3ui& max) const
     max.fill(std::numeric_limits<Vector3ui::Scalar>::min());
 
     for (auto& it : patches){
-        auto id = it.first;
-        Vector3ui anchor = unhash(id, UNIVERSAL_CONSTANT) * patch_length;
+        Vector3ui anchor = p2m(it.first);
 
         min(0) = std::min(min(0), anchor(0));
         min(1) = std::min(min(1), anchor(1));
@@ -158,13 +161,7 @@ bool lama::Map::patchAllocated(const Vector3ui& coordinates) const
 
 bool lama::Map::patchIsUnique(const Vector3ui& coordinates) const
 {
-    uint64_t idx; // patch index
-    Vector3ul rcd = (coordinates / patch_length).template cast<uint64_t>();
-
-    if (is_3d)
-        idx = rcd(2) + 2642244ul * ( rcd(1) + rcd(0) * 2642244ul);
-    else
-        idx = rcd(1) + rcd(0) * 2642244ul;
+    uint64_t idx = m2p(coordinates); // patch index
 
     auto it = patches.find(idx);
     if (it == patches.end())
@@ -317,34 +314,19 @@ void lama::Map::computeRay(const Vector3d& from, const Vector3d& to, VectorVecto
 
 }
 
-void lama::Map::visit_all_cells(const CellWalker& walker)
-{
-    for (auto& it : patches){
-        auto id = it.first;
-        Vector3ui anchor = unhash(id, UNIVERSAL_CONSTANT) * patch_length;
-
-        for (uint32_t idx = 0; idx < patch_volume; ++idx)
-            walker(anchor + unhash(idx, patch_length));
-    }// end for_all
-}
-
 void lama::Map::visit_all_cells(const CellWalker& walker) const
 {
     for (auto& it : patches){
-        auto id = it.first;
-        Vector3ui anchor = unhash(id, UNIVERSAL_CONSTANT) * patch_length;
-
-        for (uint32_t idx = 0; idx < patch_volume; ++idx)
-            walker(anchor + unhash(idx, patch_length));
+        Vector3ui anchor = p2m(it.first);
+        for (auto cell = it.second->mask.beginOn(); cell; ++cell)
+            walker(anchor + c2m(*cell));
     }// end for_all
 }
 
 void lama::Map::visit_all_patches(const CellWalker& walker) const
 {
     for (auto& it : patches){
-        auto id = it.first;
-        Vector3ui anchor = unhash(id, UNIVERSAL_CONSTANT) * patch_length;
-
+        Vector3ui anchor = p2m(it.first);
         walker(anchor);
     }// end for_all
 }
@@ -353,18 +335,10 @@ void lama::Map::visit_all_patches(const CellWalker& walker) const
 
 uint8_t* lama::Map::get(const Vector3ui& coordinates)
 {
-    uint64_t idx; // patch index
-    Vector3ul rcd = (coordinates / patch_length).template cast<uint64_t>();
-
-    if (is_3d)
-        idx = rcd(2) + 2642244ul * ( rcd(1) + rcd(0) * 2642244ul);
-    else
-        idx = rcd(1) + rcd(0) * 2642244ul;
-
-    // get the container
-    COWPtr< Container >* p;
+    uint64_t idx = m2p(coordinates);
 
     if (use_compression_){
+        COWPtr< Container >* p;
         p = lru_get(idx);
 
         if (p == 0){
@@ -372,8 +346,7 @@ uint8_t* lama::Map::get(const Vector3ui& coordinates)
             auto it = patches.find(idx);
             if (it == patches.end()){
                 // first time reference
-                it = patches.insert(std::make_pair(idx, COWPtr< Container >(new Container)) ).first;
-                //it->second->alloc(patch_volume_);
+                it = patches.insert(std::make_pair(idx, COWPtr< Container >(new Container(log2dim))) ).first;
                 it->second->alloc(patch_volume, cell_memory_size);
 
                 p = &(it->second);
@@ -386,43 +359,30 @@ uint8_t* lama::Map::get(const Vector3ui& coordinates)
             lru_put(idx, p);
         }
 
-    } else {
+        return (*p)->get(m2c(coordinates));
+    }// end if (use_compression_)
 
+    if (prev_idx_ != idx) {
         auto it = patches.find(idx);
         if (it == patches.end()){
-            it = patches.insert(std::make_pair(idx, COWPtr< Container >(new Container)) ).first;
-            //it->second->alloc(patch_volume_);
+            it = patches.insert(std::make_pair(idx, COWPtr< Container >(new Container(log2dim))) ).first;
             it->second->alloc(patch_volume, cell_memory_size);
         }
 
-        p = &(it->second);
-    }
+        prev_idx_ = idx;
+        prev_patch_ = &(it->second);
+    }// end if
 
-    rcd  = coordinates.cast<uint64_t>() - rcd * (uint64_t) patch_length;
-
-    if (is_3d)
-        idx = rcd(2) + patch_length * (rcd(1) + rcd(0) * patch_length);
-    else
-        idx = rcd(1) + rcd(0) * patch_length;
-
-    return (*p)->get(idx);
+    return (*prev_patch_)->get(m2c(coordinates));
 }
 
 const uint8_t* lama::Map::get(const Vector3ui& coordinates) const
 {
-    uint64_t idx; // patch index
-    Vector3ul rcd = (coordinates / patch_length).cast<uint64_t>();
-
-    if (is_3d)
-        idx = rcd(2) + 2642244ul * ( rcd(1) + rcd(0) * 2642244ul);
-    else
-        idx = rcd(1) + rcd(0) * 2642244ul;
-
-    COWPtr< Container >* p;
+    uint64_t idx = m2p(coordinates);
 
     if (use_compression_){
+        COWPtr< Container >* p;
         p = lru_get(idx);
-
         // is it in cache ?
         if (p == 0){
             auto it = patches.find(idx);
@@ -433,49 +393,43 @@ const uint8_t* lama::Map::get(const Vector3ui& coordinates) const
                 p = const_cast<COWPtr< Container >* >(&(it->second));
                 (*p)->decompress(bc_);
             }
-
             lru_put(idx, p);
+        }// end if
+
+        return (*p).read_only()->get(m2c(coordinates));
+    }// end if (use_compression_)
+
+    if (prev_idx_ != idx){
+        auto it = patches.find(idx);
+        if (it == patches.end()){
+            prev_patch_ = 0;
+            return 0;
         }
 
+        prev_idx_ = idx;
+        prev_patch_ = const_cast<COWPtr< Container >* >(&(it->second));
+
     } else {
-
-        auto it = patches.find(idx);
-        if (it == patches.end())
+        if (prev_patch_ == nullptr)
             return 0;
-
-        p = const_cast<COWPtr< Container >* >(&(it->second));
     }
-
-    rcd = coordinates.cast<uint64_t>() - rcd * patch_length;
-
-    if (is_3d)
-        idx = rcd(2) + patch_length * (rcd(1) + rcd(0) * patch_length);
-    else
-        idx = rcd(1) + rcd(0) * patch_length;
-
 
     // immutable version is called because p has
     // a const qualifier
-    return (*p).read_only()->get(idx);
+    return (*prev_patch_).read_only()->get(m2c(coordinates));
 }
 
 uint64_t lama::Map::hash(const Vector3ui& coordinates) const
 {
     if (is_3d)
-        return coordinates(2) + 2642244ul * ( coordinates(1) + coordinates(0) * 2642244ul);
+        return coordinates(2) + UNIVERSAL_CONSTANT * ( coordinates(1) + coordinates(0) * UNIVERSAL_CONSTANT);
 
-    return coordinates(1) + coordinates(0) * 2642244ul;
+    return coordinates(1) + coordinates(0) * UNIVERSAL_CONSTANT;
 }
 
 bool lama::Map::deletePatchAt(const Vector3ui& coordinates)
 {
-    uint64_t idx;
-    Vector3ul rcd = (coordinates / patch_length).template cast<uint64_t>();
-
-    if (is_3d)
-        idx = rcd(2) + UNIVERSAL_CONSTANT * ( rcd(1) + rcd(0) * UNIVERSAL_CONSTANT);
-    else
-        idx = rcd(1) + rcd(0) * UNIVERSAL_CONSTANT;
+    uint64_t idx = m2p(coordinates);
 
     auto p = patches.find(idx);
     if ( p == patches.end() )
@@ -637,7 +591,7 @@ void lama::Map::lru_put(uint64_t idx, COWPtr< Container >* container) const
 
 lama::COWPtr< lama::Container >* lama::Map::lru_get(uint64_t idx) const
 {
-    std::map<uint64_t, list_iterator_t>::const_iterator it = lru_items_map_.find(idx);
+    Dictionary<uint64_t, list_iterator_t>::const_iterator it = lru_items_map_.find(idx);
     if (it == lru_items_map_.end()){
         return 0;
     }

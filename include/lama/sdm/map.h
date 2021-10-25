@@ -127,6 +127,65 @@ public:
     { return tf_inv_ * coordinates.cast<double>(); }
 
     /**
+     * Convert discrete coordinates to patch index.
+     */
+    inline uint64_t m2p(const Vector3ui& coordinates) const
+    {
+        if (is_3d)
+            return ((coordinates(0) >> log2dim) * UNIVERSAL_CONSTANT + (coordinates(1) >> log2dim)) * UNIVERSAL_CONSTANT +
+                (coordinates(2) >> log2dim);
+        else
+            return (coordinates(0) >> log2dim) * UNIVERSAL_CONSTANT +
+                (coordinates(1) >> log2dim);
+    }
+
+    /**
+     * Convert patch index to discrete coordinates
+     */
+    inline Vector3ui p2m(uint64_t idx) const
+    {
+        if (is_3d){
+            auto uc2 = UNIVERSAL_CONSTANT * UNIVERSAL_CONSTANT;
+            return Vector3ui((idx / uc2) << log2dim,
+                    ((idx % uc2) / UNIVERSAL_CONSTANT) << log2dim,
+                    ((idx % uc2) % UNIVERSAL_CONSTANT) << log2dim);
+        }
+        // else
+        return Vector3ui((idx / UNIVERSAL_CONSTANT) << log2dim,
+                (idx % UNIVERSAL_CONSTANT) << log2dim, 0);
+    }
+
+    /**
+     * Convert discrete coordinates to cell index.
+     */
+    inline uint32_t m2c(const Vector3ui& coordinates) const
+    {
+        const uint32_t mask = ((1<<log2dim)-1);
+        if (is_3d)
+            return ((coordinates(0) & mask) << (2*log2dim)) |
+                   ((coordinates(1) & mask) << log2dim)     |
+                   (coordinates(2) & mask);
+        else
+            return ((coordinates(0) & mask) << log2dim) |
+                   (coordinates(1) & mask);
+    }
+
+    /**
+     * Convert cell index to local grid discrete coordinates.
+     */
+    inline Vector3ui c2m(uint32_t idx) const
+    {
+        const uint32_t mask = ((1<<log2dim)-1);
+        if (is_3d){
+            return Vector3ui((idx >> (2*log2dim)),
+                    ((idx >> log2dim) & mask),
+                    (idx & mask));
+        }
+        // else
+        return Vector3ui((idx >> log2dim), (idx & mask), 0);
+    }
+
+    /**
      * Get the size of allocated memory.
      *
      * It only counts the memory allocated for the patches.
@@ -207,7 +266,7 @@ public:
     /// The method is more simple and cleaner than implementing
     /// and using an iterator. For each cells it calls a walker.
     /// Lambdas are great for this.
-    void visit_all_cells(const CellWalker& walker);
+    /* void visit_all_cells(const CellWalker& walker); */
     void visit_all_cells(const CellWalker& walker) const;
 
     /// A patch walker is a function that is called with the
@@ -285,6 +344,8 @@ private:
 
 private:
 
+    int log2dim; // patch lenght in bits
+
     Affine3d tf_;
     Affine3d tf_inv_;
 
@@ -292,6 +353,9 @@ private:
     typedef COWPtr< Container >* lru_type_t;
     typedef std::pair<uint64_t, lru_type_t> key_value_pair_t;
     typedef LinkedList<key_value_pair_t>::iterator list_iterator_t;
+
+    mutable uint64_t prev_idx_ = -1;
+    mutable COWPtr<Container>* prev_patch_;
 
     mutable LinkedList<key_value_pair_t>          lru_items_list_;
     mutable Dictionary<uint64_t, list_iterator_t> lru_items_map_;
