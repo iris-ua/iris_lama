@@ -39,6 +39,7 @@ namespace lama {
 
 struct Image;
 
+bool image_read(Image& image, const std::string& filename);
 bool image_write_png(const Image& image, const std::string& filename);
 
 } /* lama */

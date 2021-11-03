@@ -33,11 +33,29 @@
 
 #include <fstream>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "extern/stb_image.h"
+
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "extern/stb_image_write.h"
 
 #include "lama/image.h"
 #include "lama/image_io.h"
+
+bool lama::image_read(Image& image, const std::string& filename)
+{
+    int x, y, channels;
+    auto data = stbi_load(filename.c_str(), &x, &y, &channels, 1);
+    if ( data == nullptr )
+        return false;
+
+    image.width = x;
+    image.height = y;
+    image.channels = channels;
+    image.data.reset(data);
+
+    return true;
+}
 
 bool lama::image_write_png(const Image& image, const std::string& filename)
 {
