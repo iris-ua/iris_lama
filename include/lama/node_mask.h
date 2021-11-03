@@ -71,10 +71,10 @@ inline uint32_t CountOn(uint64_t v)
 /// and a fast codec for I/O compression.
 class Mask
 {
-  uint64_t* mWords = nullptr;
   uint64_t staticWords[8];
 
 public:
+  uint64_t* mWords = nullptr;
   const uint8_t LOG2DIM;
   const uint32_t SIZE;        // Number of bits in mask
   const uint32_t WORD_COUNT;  // Number of 64 bit words

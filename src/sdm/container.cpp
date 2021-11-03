@@ -31,6 +31,8 @@
  *
  */
 
+#include <fstream>
+
 #include "lama/print.h"
 #include "lama/sdm/container.h"
 
@@ -54,7 +56,8 @@ lama::Container::Container(const Container& other)
 
 lama::Container::~Container()
 {
-    free(data);
+    if (data != nullptr)
+        free(data);
 }
 
 bool lama::Container::ok() const
@@ -123,45 +126,36 @@ bool lama::Container::decompress(BufferCompressor* bc)
 
 void lama::Container::write(BufferCompressor* bc, std::ofstream& stream) const
 {
-#if 0
-    ldc::ZSTDBufferCompressor zstd;
+    uint8_t* write_data = data;
 
-    if (compressed_size_ > 0){
-        // data is already compressed, must decompress and recompress with zstd
+    // If the data is compressed we must descompress before writting.
+    if (memory_size != actual_memory_size){
+        char* new_data;
+        auto expected_size = bc->decompress((const char*)data, actual_memory_size, &new_data, memory_size);
 
-        size_t dst_size = mem_size_ * sizeof(T);
-        char* rbuffer;
-        char* cbuffer;
+        if (expected_size != memory_size){
+            // It failed to decompress. Lets write all zeros.
+            write_data = (uint8_t*) calloc(1, memory_size);
+        } else {
+            write_data = (uint8_t*) new_data;
+        }//end if
+    }//end if
 
-        bc->decompress(cdata_, compressed_size_, &rbuffer, dst_size);
-        dst_size = zstd.compress(rbuffer, dst_size, &cbuffer);
+    stream.write((char*)write_data, memory_size);
+    stream.write((char*)mask.mWords, sizeof(uint64_t) * mask.wordCount());
 
-        stream.write((char*)&dst_size, sizeof(dst_size));
-        stream.write(cbuffer, dst_size);
-
-        delete [] rbuffer;
-        delete [] cbuffer;
-
-    } else {
-        // lets compress the data and then write
-        char* out;
-        int cs = zstd.compress((const char*)data_, mem_size_ * sizeof(T), &out);
-        stream.write((char*)&cs, sizeof(cs));
-        stream.write(out, cs);
-    }
-#endif
+    if (write_data != data)
+        free(write_data);
 }
 
 void lama::Container::read(std::ifstream& stream)
 {
-#if 0
-    free(data_);
-    data_ = 0;
+    // The container must be in its uncompressed state.
+    if (memory_size != actual_memory_size){
+        return;
+    }
 
-    stream.read((char*)&compressed_size_, sizeof(int));
-
-    cdata_ = new char[compressed_size_];
-    stream.read(cdata_, compressed_size_);
-#endif
+    stream.read((char*)data, memory_size);
+    stream.read((char*)mask.mWords, sizeof(uint64_t)*mask.wordCount());
 }
 

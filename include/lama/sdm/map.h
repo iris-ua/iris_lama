@@ -66,20 +66,38 @@ public:
     // The constant is rounded to the nearest lower even number for practical reasons.
     static const uint64_t UNIVERSAL_CONSTANT = 2642244;
 
+    // Use this magic numebr to identify a sparse-dense map (sdm) binary map.
+    // The number is the hexadecimal encoding of '.smd'.
+    static const uint32_t MAGIC = 0x6d64732e;
+
+    // Version of the binary map supported by the library.
+    static const uint16_t IO_VERSION = 0x0102;
+
     // Resolution of the map.
-    const double resolution;
+    double resolution;
     // The scale of the map, i.e. the inverse of the resolution.
-    const double scale;
+    double scale;
     // The memory size of each individual cell
     const size_t cell_memory_size;
 
     // The length of the patch in cell units.
-    const uint32_t patch_length;
+    uint32_t patch_length;
     // The number of cells in the patch volume.
-    const uint32_t patch_volume;
+    uint32_t patch_volume;
 
     // Less memory can be used when the map is used for 2d purposes.
     const bool is_3d;
+
+    // IO header
+    struct IOHeader {
+        uint32_t magic;
+        uint16_t version;
+        uint32_t cell_size;
+        uint32_t patch_length;
+        size_t num_patches;
+        float resolution;
+        bool is_3d;
+    };
 
     // Patches are kept on a sparse map and referenced by their unique id.
     // The container is wrapper around a copy-on-write structure so that we
