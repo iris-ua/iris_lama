@@ -24,6 +24,7 @@ endforeach()
 
 add_library(${PROJECT_NAME} ${lama_SOURCES})
 target_compile_options(${PROJECT_NAME} PRIVATE -Wall)
+target_link_libraries(${PROJECT_NAME} pthread)
 
 if(COMPILING_WITH_CATKIN)
     install(TARGETS ${PROJECT_NAME}
