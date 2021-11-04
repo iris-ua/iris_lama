@@ -138,15 +138,14 @@ void lama::Solver::calculateCovariance(const MatrixXd& J, MatrixXd* cov) const
                 (qr.rank() == J.cols());
 
     if ( QRok ){
-        Eigen::MatrixXd R = qr.matrixR().triangularView<Eigen::Upper>();
-        *cov = (qr.matrixR().transpose().triangularView<Eigen::Lower>() * R ).inverse();
+        *cov = (J.transpose() * J).inverse();
     }else{
         Eigen::JacobiSVD<MatrixXd> svd(J, Eigen::ComputeThinV);
         Eigen::VectorXd sv = svd.singularValues();
 
         const double eps=1.e-3; // choose your tolerance wisely!
-        sv = (sv.array().abs() > eps).select(sv.array().square().inverse(), 0);
-        *cov = svd.matrixV() * sv.asDiagonal() * svd.matrixV().transpose();
+        sv = (sv.array().abs() > eps).select(sv.array().square().inverse(), 3.0);
+        *cov = (svd.matrixV() * sv.asDiagonal() * svd.matrixV().transpose());
     }
 }
 

@@ -55,6 +55,7 @@ typedef Matrix<uint32_t, 3, 1> Vector3ui;
 typedef Matrix<int64_t,  3, 1> Vector3l;
 typedef Matrix<uint64_t, 3, 1> Vector3ul;
 
+typedef std::deque<Vector2d, aligned_allocator<Vector2d>>  VectorVector2d;
 typedef std::deque<Vector3d, aligned_allocator<Vector3d>>  VectorVector3d;
 typedef std::deque<Vector3ui,aligned_allocator<Vector3ui>> VectorVector3ui;
 typedef std::deque<VectorXd, aligned_allocator<VectorXd>>  VectorVectorXd;

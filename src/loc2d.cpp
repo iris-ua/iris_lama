@@ -54,6 +54,7 @@ lama::Loc2D::Options::Options()
     gloc_iters   = 10;
     gloc_thresh  = 0.15;
     max_iter     = 100;
+    cov_blend    = 0.0;
 }
 
 
@@ -83,6 +84,27 @@ void lama::Loc2D::Init(const Options& options)
 
     gloc_iters_ = options.gloc_iters;
     gloc_cur_iter_ = 0;
+
+    // make sure it is a number between 0 and 1.
+    cov_blend_ = std::max(std::min(options.cov_blend, 1.0), 0.0);
+
+    // Generate a sampling steps cache, if needed.
+    if (sampling_steps_.size() > 0) return;
+
+    double sstep = distance_map->resolution; // sampling step
+    sampling_steps_.push_back({0.0, 0.0});
+    for (int i = 1; i <= 20; ++i){
+        sampling_steps_.push_back({ i * sstep, 0.0});
+        sampling_steps_.push_back({0.0, i * sstep});
+
+        sampling_steps_.push_back({-i * sstep, 0.0});
+        sampling_steps_.push_back({0.0,-i * sstep});
+
+        sampling_steps_.push_back({ i * sstep, i * sstep});
+        sampling_steps_.push_back({-i * sstep, i * sstep});
+        sampling_steps_.push_back({ i * sstep,-i * sstep});
+        sampling_steps_.push_back({-i * sstep,-i * sstep});
+    }// end for
 }
 
 lama::Loc2D::~Loc2D()
@@ -150,6 +172,9 @@ bool lama::Loc2D::update(const PointCloudXYZ::Ptr& surface, const Pose2D& odomet
     pose_.state = match_surface.getState();
     cov_ = cov;
 
+    if (cov_blend_ > 0.0)
+        addSamplingCovariance(surface);
+
     VectorXd residuals;
     match_surface.eval(residuals, 0);
     rmse_ = sqrt(residuals.squaredNorm()/((double)(surface->points.size() - 1)));
@@ -171,6 +196,55 @@ void lama::Loc2D::triggerGlobalLocalization()
     do_global_localization_ = true;
 }
 
+void lama::Loc2D::addSamplingCovariance(const PointCloudXYZ::Ptr& surface)
+{
+    // Calculate covariance with sampling.
+    double x, y;
+    Matrix2d K = Matrix2d::Zero();
+    Vector2d u = Vector2d::Zero();
+    double s   = 0;
+
+    // This one is static
+    Affine3d moving_tf = Translation3d(surface->sensor_origin_) * surface->sensor_orientation_;
+
+    const size_t num_points = surface->points.size();
+    const size_t step = std::max(num_points / 100, 1ul);
+
+    auto aa = AngleAxisd(pose_.rotation(), Vector3d::UnitZ());
+    for (size_t i = 0; i < sampling_steps_.size(); ++i){
+        x = pose_.x() + sampling_steps_[i].x();
+        y = pose_.y() + sampling_steps_[i].y();
+
+        Vector3d trans = (Vector3d() << x, y, 0.0).finished();
+
+        Affine3d fixed_tf = Translation3d(trans) * aa;
+        Affine3d tf = fixed_tf * moving_tf;
+
+        double l = 0.0;
+        for (size_t i = 0; i < num_points; i += step ){
+            Vector3d hit = tf * surface->points[i];
+
+            // Get distance without interpolation. It is faster and is enough.
+            double dist = distance_map->distance(distance_map->w2m(hit));
+            double e = std::exp( - (dist * dist) / 0.01);
+            l += e*e*e;
+        }// end for
+
+        K = K + trans.head<2>() * trans.head<2>().transpose() * l;
+        u = u + trans.head<2>() * l;
+        s = s + l;
+    }
+
+    // E. B. Olson, “Real-time correlative scan matching,”
+    // in 2009 IEEE International Conference on Robotics and Automation,
+    // Kobe, May 2009, pp. 4387–4393. doi: 10.1109/ROBOT.2009.5152375.
+    MatrixXd sampling_cov = Matrix2d::Zero();
+    sampling_cov = (1.0 / s) * K - (1.0 / (s*s)) * u * u.transpose();
+
+    // Linear interpolation of the covariances.
+    const double& alpha = cov_blend_;
+    cov_.topLeftCorner<2,2>() = alpha*sampling_cov + (1.0 - alpha)*cov_.topLeftCorner<2,2>();
+}
 
 void lama::Loc2D::globalLocalization(const PointCloudXYZ::Ptr& surface)
 {
