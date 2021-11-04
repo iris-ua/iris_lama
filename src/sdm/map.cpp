@@ -362,7 +362,7 @@ uint8_t* lama::Map::get(const Vector3ui& coordinates)
         return (*p)->get(m2c(coordinates));
     }// end if (use_compression_)
 
-    if (prev_idx_ != idx) {
+    if (prev_idx_ != idx or prev_patch_ == nullptr) {
         auto it = patches.find(idx);
         if (it == patches.end()){
             it = patches.insert(std::make_pair(idx, COWPtr< Container >(new Container(log2dim))) ).first;
@@ -402,6 +402,7 @@ const uint8_t* lama::Map::get(const Vector3ui& coordinates) const
     if (prev_idx_ != idx){
         auto it = patches.find(idx);
         if (it == patches.end()){
+            prev_idx_ = idx;
             prev_patch_ = 0;
             return 0;
         }
@@ -409,8 +410,7 @@ const uint8_t* lama::Map::get(const Vector3ui& coordinates) const
         prev_idx_ = idx;
         prev_patch_ = const_cast<COWPtr< Container >* >(&(it->second));
 
-    } else {
-        if (prev_patch_ == nullptr)
+    } else if (prev_patch_ == nullptr){
             return 0;
     }
 
