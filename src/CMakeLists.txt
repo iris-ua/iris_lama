@@ -46,9 +46,29 @@ elseif(COMPILING_WITH_AMENT)
         DESTINATION include/lama
         PATTERN ".svn" EXCLUDE)
 else()
-    export(TARGETS ${PROJECT_NAME} FILE iris_lamaConfig.cmake)
-    set(CMAKE_EXPORT_PACKAGE_REGISTRY ON)
+
     export(PACKAGE iris_lama)
+
+    install(EXPORT ${PROJECT_NAME}Targets
+        FILE ${PROJECT_NAME}-config.cmake
+        DESTINATION lib/cmake/iris_lama)
+
+    install(TARGETS ${PROJECT_NAME}
+        EXPORT   ${PROJECT_NAME}Targets
+        ARCHIVE  DESTINATION lib
+        LIBRARY  DESTINATION lib
+        INCLUDES DESTINATION include)
+
+    install(DIRECTORY ../include/lama/
+        DESTINATION include/lama
+        PATTERN ".svn" EXCLUDE)
+
+    include(CMakePackageConfigHelpers)
+    write_basic_package_version_file(
+        iris_lama-config-version.cmake
+        VERSION ${IRIS_LAMA_VERSION}
+        COMPATIBILITY AnyNewerVersion)
+
 endif()
 
 
