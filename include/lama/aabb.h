@@ -47,10 +47,12 @@ struct AABB {
     // default constructor
     AABB() = default;
 
-    // Create an AABB given the center and the half width.
-    AABB(const Vector3d& c, const Vector3d& hw)
-        : center(c), hwidth(hw)
-    {}
+    AABB(const Vector3d& min, const Vector3d& max)
+    {
+        Vector3d local = max - min;
+        hwidth = local * 0.5;
+        center = min + hwidth;
+    }
 
     // Create an AABB given the lower and the upper coordinates.
     AABB(const Vector3ui& min, const Vector3ui& max)
