@@ -262,9 +262,9 @@ void lama::Slam2D::updateMaps(const PointCloudXYZ::Ptr& surface)
     VectorVector3ui free;
 
     // This will be used to calculate the surface AABB.
-    Vector3ui min, max;
-    min.fill(std::numeric_limits<Vector3ui::Scalar>::max());
-    max.fill(std::numeric_limits<Vector3ui::Scalar>::min());
+    Vector3d min, max;
+    min.fill(std::numeric_limits<Vector3d::Scalar>::max());
+    max.fill(-std::numeric_limits<Vector3d::Scalar>::max());
 
     Dictionary<uint64_t, bool> seen;
 
@@ -302,8 +302,8 @@ void lama::Slam2D::updateMaps(const PointCloudXYZ::Ptr& surface)
 
         Vector3ui mhit = occupancy_map_->w2m(hit);
         if (transient_map_){
-            min = min.cwiseMin(mhit);
-            max = max.cwiseMax(mhit);
+            min = min.cwiseMin(hit);
+            max = max.cwiseMax(hit);
         }
 
         if (mark_hit){
@@ -334,20 +334,33 @@ void lama::Slam2D::updateMaps(const PointCloudXYZ::Ptr& surface)
     // make sure the Z coordinate is zero (2D remember?).
     min(2) = max(2) = 0;
 
+    // make sure the min and max are at the same distance from the robot's pose.
+    double xdist = std::max(pose_.x() - min(0), max(0) - pose_.x()) * 2.0;
+    double ydist = std::max(pose_.y() - min(1), max(1) - pose_.y()) * 2.0;
+
+    min(0) = pose_.x() - xdist;
+    min(1) = pose_.y() - ydist;
+
+    max(0) = pose_.x() + xdist;
+    max(1) = pose_.y() + ydist;
+
     // Axis Aligned Bounding box of the current surface (or lidar scan).
     AABB a(min, max);
 
     // expand the AABB by twice the maximum distance of distance map.
-    a.hwidth.array() += 2.0 * (distance_map_->maxDistance() / distance_map_->resolution);
+    a.hwidth.array() += 2.0 * distance_map_->maxDistance();
 
     // We use the distance map for intersection test because its bounds are larger than
     // the occupancy map bounds. This way, we make sure all unecessary patches are removed.
     VectorVector3ui to_remove;
-    distance_map_->visit_all_patches([&a, &min, &max, &to_remove, this](auto& origin){
-        const uint32_t volume = this->occupancy_map_->patch_volume;
+    distance_map_->visit_all_patches([&a, &to_remove, this](auto& origin){
         const uint32_t length = this->occupancy_map_->patch_length;
 
-        AABB b(origin, origin + occupancy_map_->unhash(volume - 1, length));
+        Vector3d ws = this->occupancy_map_->m2w(origin);
+        Vector3d we = this->occupancy_map_->m2w(origin + Vector3ui(length, length, 0.0) );
+
+        ws(2) = we(2) = 0.0;
+        AABB b(ws, we);
 
         bool intersect = a.testIntersection(b);
         if ( intersect ) return;
@@ -362,4 +375,3 @@ void lama::Slam2D::updateMaps(const PointCloudXYZ::Ptr& surface)
         distance_map_->deletePatchAt(coord);
     }
 }
-
