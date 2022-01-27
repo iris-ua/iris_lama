@@ -37,31 +37,12 @@ lama::DynamicDistanceMap::DynamicDistanceMap(double resolution, uint32_t patch_s
     : DistanceMap(resolution, sizeof(distance_t), patch_size, is3d),
       max_sqdist_(100)
 {
-    int idx = 0;
-    for (int x = -1; x <= 1; ++x)
-        for (int y = -1; y <= 1; ++y){
-
-            if (x == 0 && y == 0)
-                continue;
-
-            deltas_[idx][0] = x;
-            deltas_[idx][1] = y;
-            deltas_[idx][2] = 0;
-
-            idx++;
-        }
-
-    for (int x = -1; x <= 1; ++x)
-        for (int y = -1; y <= 1; ++y)
-            for (int z = -1; z <= 1; z += 2){
-
-                deltas_[idx][0] = x;
-                deltas_[idx][1] = y;
-                deltas_[idx][2] = z;
-
-                idx++;
-            }
-
+    deltas_.push_back({ 1,  0, 0});
+    deltas_.push_back({ 0,  1, 0});
+    deltas_.push_back({-1,  0, 0});
+    deltas_.push_back({ 0, -1, 0});
+    deltas_.push_back({ 0, 0,  1});
+    deltas_.push_back({ 0, 0, -1});
 }
 
 lama::DynamicDistanceMap::DynamicDistanceMap(const DynamicDistanceMap& other)
@@ -70,30 +51,12 @@ lama::DynamicDistanceMap::DynamicDistanceMap(const DynamicDistanceMap& other)
 
     max_sqdist_ = other.max_sqdist_;
 
-    int idx = 0;
-    for (int x = -1; x <= 1; ++x)
-        for (int y = -1; y <= 1; ++y){
-
-            if (x == 0 && y == 0)
-                continue;
-
-            deltas_[idx][0] = x;
-            deltas_[idx][1] = y;
-            deltas_[idx][2] = 0;
-
-            idx++;
-        }
-
-    for (int x = -1; x <= 1; ++x)
-        for (int y = -1; y <= 1; ++y)
-            for (int z = -1; z <= 1; z += 2){
-
-                deltas_[idx][0] = x;
-                deltas_[idx][1] = y;
-                deltas_[idx][2] = z;
-
-                idx++;
-            }
+    deltas_.push_back({ 1,  0, 0});
+    deltas_.push_back({ 0,  1, 0});
+    deltas_.push_back({-1,  0, 0});
+    deltas_.push_back({ 0, -1, 0});
+    deltas_.push_back({ 0, 0,  1});
+    deltas_.push_back({ 0, 0, -1});
 }
 
 lama::DynamicDistanceMap::~DynamicDistanceMap()
@@ -281,17 +244,15 @@ void lama::DynamicDistanceMap::removeObstacle(const Vector3ui& location)
 void lama::DynamicDistanceMap::raise(const Vector3ui& location, distance_t& current)
 {
     Vector3ui newloc;
-    const int numOfNeighbor = is_3d ? 26 : 8;
+    const int numOfNeighbor = is_3d ? 6 : 4;
     for (int i = 0; i < numOfNeighbor; ++i){
 
         Vector3l d(deltas_[i][0], deltas_[i][1], deltas_[i][2]);
 
         newloc = (location.cast<int64_t>() + d).cast<uint32_t>();
         distance_t* neighbor = (distance_t*) get(newloc);
-        if (neighbor == 0 or neighbor->is_queued)
-            continue;
 
-        if (not neighbor->valid_obstacle)
+        if (neighbor->is_queued or (not neighbor->valid_obstacle))
             continue;
 
         Vector3ui obs = (newloc.cast<int64_t>() + neighbor->obstacle.cast<int64_t>()).cast<uint32_t>();
@@ -309,7 +270,6 @@ void lama::DynamicDistanceMap::raise(const Vector3ui& location, distance_t& curr
             neighbor->is_queued      = true;
         }else if(not neighbor->is_queued){
             lower_.push({neighbor->sqdist, newloc});
-
             neighbor->is_queued = true;
         }
 
@@ -326,7 +286,7 @@ void lama::DynamicDistanceMap::lower(const Vector3ui& location, distance_t& curr
         return;
 
     Vector3l newloc;
-    const int numOfNeighbor = is_3d ? 26 : 8;
+    const int numOfNeighbor = is_3d ? 6 : 4;
     for (int i = 0; i < numOfNeighbor; ++i){
 
         // deltas
@@ -338,8 +298,6 @@ void lama::DynamicDistanceMap::lower(const Vector3ui& location, distance_t& curr
 
         newloc = (location.cast<int64_t>() + d);
         distance_t* neighbor = (distance_t*) get(newloc.cast<uint32_t>());
-        if (neighbor == 0)
-            continue;
 
         // Absolute position of the current obstacle
         Vector3l obs = (location.cast<int64_t>() + current.obstacle.cast<int64_t>());

@@ -100,7 +100,7 @@ private:
     queue_t lower_;
     queue_t raise_;
 
-    int deltas_[26][3];
+    VectorVector3i deltas_;
     uint32_t max_sqdist_;
 
 };
