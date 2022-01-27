@@ -53,8 +53,8 @@ struct Pose2D {
 
     virtual ~Pose2D();
 
-    Pose2D operator+(const Pose2D& other);
-    Pose2D operator-(const Pose2D& other);
+    Pose2D operator+(const Pose2D& other) const;
+    Pose2D operator-(const Pose2D& other) const;
 
     Vector2d operator*(const Vector2d& point);
 
