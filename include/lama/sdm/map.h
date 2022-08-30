@@ -35,6 +35,7 @@
 
 // stl includes
 #include <utility>
+#include <unordered_map>
 
 // local includes
 #include "lama/types.h"
@@ -105,7 +106,7 @@ public:
     // The container is wrapper around a copy-on-write structure so that we
     // share data efficiently, for example, duplicating a map only duplicates
     // patches that are accessed for writing during their lifetime.
-    Dictionary<uint64_t, COWPtr< Container > > patches;
+    std::unordered_map<uint64_t, COWPtr< Container > > patches;
 
     virtual ~Map();
 
