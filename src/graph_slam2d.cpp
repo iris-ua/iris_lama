@@ -46,7 +46,6 @@
 #include "minisam/utils/Timer.h"
 
 #include "lama/match_surface_2d.h"
-#include "lama/math.h"
 #include "lama/nlls/gauss_newton.h"
 #include "lama/nlls/solver.h"
 #include "lama/print.h"
@@ -55,22 +54,23 @@
 #include "lama/sdm/export.h"
 
 #include "lama/graph_slam2d.h"
-#include "lama/skip_extractor.h"
 
 #include "extern/nanoflann/nanoflann.hpp"
 
 template <typename Derived> struct KeyPosesNanoFlannAdaptor {
 
     const Derived &obj; //!< A const ref to the data set origin
+    const int ignore_n_keys;
 
     /// The constructor that sets the data set source
-    explicit KeyPosesNanoFlannAdaptor(const Derived &obj_) : obj(obj_) {}
+    explicit KeyPosesNanoFlannAdaptor(const Derived &obj_, int ignore_n_keys)
+        : obj(obj_), ignore_n_keys(ignore_n_keys) {}
 
     /// CRTP helper method
     inline const Derived &derived() const { return obj; }
 
     // Must return the number of data points
-    inline size_t kdtree_get_point_count() const { return derived().size(); }
+    inline size_t kdtree_get_point_count() const { return derived().size() - ignore_n_keys; }
 
     // Returns the dim'th component of the idx'th point in the class:
     // Since this is inlined and the "dim" argument is typically an immediate
@@ -103,7 +103,7 @@ typedef nanoflann::KDTreeSingleIndexAdaptor<
 lama::GraphSlam2D::GraphSlam2D(const Options &options) : options(options) {
 
     this->options.transient_map = true;
-    this->options.truncated_ray = this->options.l2_max;
+    this->options.truncated_ray = 1.0; //this->options.l2_max;
 
     slam = std::make_shared<Slam2D>(this->options);
     graph = new sam::FactorGraph();
@@ -127,9 +127,9 @@ lama::Pose2D lama::GraphSlam2D::getPose() const {
     return (correction + slam->getPose());
 }
 
-lama::GraphSlam2D::FrequencyOccupancyMapPtr lama::GraphSlam2D::generateOccupancyMap() {
+lama::GraphSlam2D::FrequencyOccupancyMapPtr lama::GraphSlam2D::generateOccupancyMap(bool full) {
     if (mapping_keyid == 0)
-        occ = std::make_shared<FrequencyOccupancyMap>(options.resolution);
+        occ = std::make_shared<FrequencyOccupancyMap>(full ? options.resolution : 0.1);
 
     for (size_t i = mapping_keyid; i < key_poses.size(); ++i) {
 
@@ -150,7 +150,9 @@ lama::GraphSlam2D::FrequencyOccupancyMapPtr lama::GraphSlam2D::generateOccupancy
         for (auto &point : cloud->points) {
             Vector3d hit = tf * point;
             occ->setOccupied(hit);
-            occ->computeRay(so, occ->w2m(hit), free);
+
+            if (full)
+                occ->computeRay(so, occ->w2m(hit), free);
         } // end for points
 
         for (auto &point : free)
@@ -158,6 +160,7 @@ lama::GraphSlam2D::FrequencyOccupancyMapPtr lama::GraphSlam2D::generateOccupancy
 
     } // end for
 
+    occ->prune();
     mapping_keyid = key_poses.size();
     return occ;
 }
@@ -186,10 +189,16 @@ lama::GraphSlam2D::DynamicDistanceMapPtr lama::GraphSlam2D::generateCoarseDistan
 
 bool lama::GraphSlam2D::update(const PointCloudXYZ::Ptr &surface, const Pose2D &odometry, double timestamp)
 {
+    static auto transient_timer = sam::global_timer().getTimer("* Update/Transient Mapping");
+
     // 1. Update the transient slam
+    transient_timer->tic();
     auto did_update = slam->update(surface, odometry, timestamp);
+    transient_timer->toc();
     if (!did_update)
         return false;
+
+    static Pose2D odom = odometry;
 
     // 2. Check for key pose
     static Pose2D prev(1e10, 1e10, 0.0);
@@ -204,104 +213,105 @@ bool lama::GraphSlam2D::update(const PointCloudXYZ::Ptr &surface, const Pose2D &
     // 4. Add key pose to pose graph and key pose list.
     int keyid = key_poses.size();
 
-    /* static double accdist = 0.0; */
-    if (keyid != 0)
-        accdist += diff.xy().norm();
-
     if (keyid == 0) {
 
-        auto loss = sam::DiagonalLoss::Sigmas(Vector3d(0.5, 0.5, 0.25));
+        auto loss = sam::DiagonalLoss::Sigmas(Vector3d(0.01, 0.01, 0.01));
         graph->add(sam::PriorFactor<SE2d>(sam::key('x', keyid), slam->getPose().state, loss));
 
     } else {
 
+        accdist += diff.xy().norm();
+
         Pose2D between = key_poses.back().pose - (correction + slam->getPose());
         auto keyid = key_poses.size();
-        // TODO: Use a better loss function
+        // TODO: Use a better loss function ?
         auto loss = sam::DiagonalLoss::Sigmas(Vector3d(0.25, 0.25, 0.15));
         graph->add(sam::BetweenFactor<SE2d>(sam::key('x', keyid - 1), sam::key('x', keyid), between.state, loss));
     }
 
-    key_poses.push_back({keyid, correction + slam->getPose(), surface, timestamp});
+    key_poses.push_back({keyid, correction + slam->getPose(), slam->getPose(), odom - odometry, surface, timestamp});
 
-    // No need to check the firest n chain poses.
-    /* if (keyid < options.ignore_n_chain_poses) */
-    if (keyid < 5)
+    if (keyid < options.key_pose_head_delay ||
+        keyid < options.ignore_n_chain_poses)
         return true;
 
-    // 5. Search for loop closures
 
-    double r = std::min(accdist, 200.0) / 200.0;
+    // 5. Search for loop closures
+    double r = std::min(accdist, 100.0) / 100.0;
     double radius = std::pow(options.loop_search_max_distance, r) * std::pow(options.loop_search_min_distance, (1.0 - r));
 
-    keyid -= 5;
+    keyid -= options.key_pose_head_delay;
     Pose2D &pose = key_poses[keyid].pose;
+
+    auto findloop_timer = sam::global_timer().getTimer("* Update/Find Loop Candidates ");
+    findloop_timer->tic();
     LoopClosureCandidates candidates = findLoopClosureCandidates(pose.xy(), radius);
-
-    Solver::Options solver_options;
-    solver_options.max_iterations = 100;
-    solver_options.strategy.reset(new GaussNewton{});
-    solver_options.robust_cost.reset(new CauchyWeight(0.15));
-
-    failure = -1;
+    findloop_timer->toc();
 
     static double factordist = 0.0;
     factordist += diff.xy().norm();
 
+    auto correlation_timer = sam::global_timer().getTimer("* Update/Correlation ");
+    correlation_timer->tic();
     Pose2D between;
-    for (auto &idx : candidates) {
+    for (size_t i = 0; i < candidates.size(); ++i){
+        auto& idx = candidates[i];
 
         double rmse = correlateCandidateScan(keyid, idx, between);
 
-        if (failure == -1)
-            failure = idx;
+        if (rmse > options.loop_closure_scan_rmse){
+            if (i == 0){
+                // one more chance but only for the closest candidate
+                rmse = coarseSearchAndCorrelateCandidateScan(keyid, idx, between);
+                if (rmse > options.loop_closure_scan_rmse * 2.0)
+                    continue;
 
-        if (between.xy().norm() > 5.0)
-            continue;
+            } else {
+                continue;
+            }// end if
+        }// end if
 
-        if (rmse < options.loop_closure_scan_rmse) {
+        // Add factor
+        static auto loss = sam::HuberLoss::Huber(0.1);
+        links.push_back(std::make_pair(idx, keyid));
+        factor_queue.push(std::make_shared<sam::BetweenFactor<SE2d>>(sam::key('x', idx), sam::key('x', keyid), between.state, loss));
 
-            // Add factor
-            static auto loss = sam::HuberLoss::Huber(0.1);
-            links.push_back(std::make_pair(idx, keyid));
-            factor_queue.push(std::make_shared<sam::BetweenFactor<SE2d>>(sam::key('x', idx), sam::key('x', keyid), between.state, loss));
-
-            factordist = 0.0;
-            // Only one factor per update
-            break;
-        } // end if
-
+        factordist = 0.0;
+        // Only one factor per update
+        break;
     } // end for
+
+    correlation_timer->toc();
 
     if (factor_queue.empty() or (factor_queue.size() <= 5 and factordist <= 15.0))
         return true;
 
+    auto optimization_timer = sam::global_timer().getTimer("* Update/Optimization ");
+    optimization_timer->tic();
     optimizePoseGraph();
     factordist = 0.0;
+
+    optimization_timer->toc();
 
     return true;
 }
 
 lama::GraphSlam2D::LoopClosureCandidates lama::GraphSlam2D::findLoopClosureCandidates(const Vector2d &query, double radius)
 {
-    KeyPosesNanoFlannAdaptor<KeyPoseList> key_poses_adaptor(key_poses);
+    KeyPosesNanoFlannAdaptor<KeyPoseList> key_poses_adaptor(key_poses, options.ignore_n_chain_poses);
     KDTree index(2, key_poses_adaptor, nanoflann::KDTreeSingleIndexAdaptorParams{10});
-    index.buildIndex();
+
+    //index.buildIndex();
 
     KeyPosesSearchResult results;
     nanoflann::SearchParams params;
 
-    index.radiusSearch(&(query.data()[0]), radius * radius, results, params);
-
-    // Ignore the N most recent poses..
-    uint32_t keyid = key_poses.size() - 1;
-    results.erase(std::remove_if(results.begin(), results.end(),
-                [&](const auto &elem) { return (int)(keyid - elem.first) < options.ignore_n_chain_poses; }),
-                results.end());
+    index.radiusSearch(&(query.data()[0]), radius*radius, results, params);
 
     // Limit the number of candidates for lower computational complexity.
-    if (results.size() > 5)
-        results.erase(results.begin() + 5, results.end());
+    const size_t max_candidates = options.loop_max_candidates;
+    if (results.size() > max_candidates)
+        results.erase(results.begin() + max_candidates, results.end());
 
     if (results.empty())
         return {}; // empty list
@@ -328,27 +338,18 @@ double lama::GraphSlam2D::correlateCandidateScan(int refidx, int candidate_id, P
     solver_options.robust_cost.reset(new HuberWeight(0.15));
     solver_options.max_iterations = 1;
 
-    double rmse;
-
     MatchSurface2D match_surface0(slam->getDistanceMap(), candidate_cloud, candidate_pose.state);
     MatchSurface2D match_surface1(slam->getDistanceMap(), candidate_cloud, Pose2D(ref_pose.xy(), candidate_pose.rotation()).state);
 
     MatchSurface2D *msp;
 
-    // 1.0 Assume that the candidate is part of the local map.
-    double rmse0 = match_surface0.error();
-    /* print(" -> pre 1.0 rmse %f\n", rmse0); */
+    // Assume that the candidate is part of the local map.
     Solve(solver_options, match_surface0);
-    rmse0 = match_surface0.error();
-    /* print(" -> 1.0 rmse %f\n", rmse0); */
+    double rmse0 = match_surface0.error();
 
-    // 1.1 Assume that the candidate is not part of the local map.
-    // Use the current pose as initial guess, but keep the original orientation
-    double rmse1 = match_surface1.error();
-    /* print(" -> pre 1.1 rmse %f\n", rmse1); */
+    // Assume that the candidate is not part of the local map.
     Solve(solver_options, match_surface1);
-    rmse1 = match_surface1.error();
-    /* print(" -> 1.1 rmse %f\n", rmse1); */
+    double rmse1 = match_surface1.error();
 
     // use the one with the lowest error
     if (rmse0 < rmse1)
@@ -359,46 +360,44 @@ double lama::GraphSlam2D::correlateCandidateScan(int refidx, int candidate_id, P
     // 2.0 Finish the optimization.
     solver_options.max_iterations = 100;
     Solve(solver_options, *msp);
-    rmse = msp->error();
 
-    /* print(" -> 2.0 rmse %f\n", rmse); */
     between = Pose2D(msp->getState()) - ref_pose;
-    return rmse;
+    return msp->error();
+}
 
-    // 3.0 Validate the current scan by looking into the chain
+double lama::GraphSlam2D::coarseSearchAndCorrelateCandidateScan(int refidx, int candidate_id, Pose2D& between)
+{
+    auto ref_pose = Pose2D(correction.state.inverse()) + key_poses[refidx].pose;
+    auto candidate_pose = Pose2D(correction.state.inverse()) + key_poses[candidate_id].pose;
 
-    // forward validation
-    auto &cloud_next_in_chain = key_poses[candidate_id + 1].cloud;
-    auto pose_next_in_chain = Pose2D(correction.state.inverse()) + key_poses[candidate_id + 1].pose;
+    auto &ref_cloud = key_poses[refidx].cloud;
+    auto &candidate_cloud = key_poses[candidate_id].cloud;
 
-    Pose2D next2candidate = candidate_pose - pose_next_in_chain;
-    msp->state_ = (Pose2D(msp->getState()) + next2candidate).state;
-    msp->scan_ = cloud_next_in_chain;
+    Solver::Options solver_options;
+    solver_options.strategy.reset(new GaussNewton{});
+    solver_options.robust_cost.reset(new HuberWeight(0.15));
 
-    double next_rmse = msp->error();
-    /* print(" -> 3.0 rmse %f\n", next_rmse); */
+    Affine3d moving_tf = Translation3d(ref_cloud->sensor_origin_) * ref_cloud->sensor_orientation_;
+    Vector3d trans; trans << ref_pose.x(),
+             ref_pose.y(),
+             0.0;
+    Affine3d fixed_tf = Translation3d(trans) * AngleAxisd(ref_pose.state.so2().log(), Vector3d::UnitZ());
+    Affine3d tf = fixed_tf * moving_tf;
 
-    // backward validation
-    double a = 0.75;
-    if (candidate_id == 0) {
-        // cannot go backward from candidate 0
-        return (rmse * a + next_rmse * (1 - a));
-    }
+    DynamicDistanceMapPtr dm = std::make_shared<DynamicDistanceMap>(0.25);
+    dm->setMaxDistance(2.5);
+    for (auto& point : ref_cloud->points)
+        dm->addObstacle(dm->w2m(tf*point));
+    dm->update();
 
-    auto &cloud_prev_in_chain = key_poses[candidate_id - 1].cloud;
-    auto pose_prev_in_chain = Pose2D(correction.state.inverse()) + key_poses[candidate_id - 1].pose;
+    MatchSurface2D match_surface(dm.get(), candidate_cloud, candidate_pose.state);
+    Solve(solver_options, match_surface);
 
-    Pose2D prev2candidate = candidate_pose - pose_prev_in_chain;
-    msp->state_ = (Pose2D(msp->getState()) + prev2candidate).state;
-    msp->scan_ = cloud_prev_in_chain;
+    match_surface.surface_ = slam->getDistanceMap();
+    Solve(solver_options, match_surface);
 
-    double prev_rmse = msp->error();
-    /* print(" -> 3.1 rmse %f\n", prev_rmse); */
-
-    if (next_rmse < prev_rmse)
-        return (rmse * a + next_rmse * (1 - a));
-
-    return (rmse * a + prev_rmse * (1 - a));
+    between = Pose2D(match_surface.getState()) - ref_pose;
+    return match_surface.error();
 }
 
 void lama::GraphSlam2D::optimizePoseGraph()

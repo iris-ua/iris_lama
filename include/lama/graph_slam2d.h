@@ -35,7 +35,6 @@
 
 #include "types.h"
 #include "pose2d.h"
-#include "skip_extractor.h"
 
 #include "slam2d.h"
 
@@ -64,10 +63,16 @@ public:
         double key_pose_distance = 1.0;
         double key_pose_angular_distance = 0.5 * M_PI;
 
+        // Head delay for loop closure reference.
+        int key_pose_head_delay = 5;
+
         // Maximum search radius for loop closure;
         double loop_search_max_distance = 10.0;
-        // Minumum search radius for loop closure;
+        // Minimum search radius for loop closure;
         double loop_search_min_distance = 2.0;
+
+        // Maximum number of loop candidates
+        int loop_max_candidates = 5;
 
         // Maximum rmse value a scan match must have to be
         // considered a valid loop closure
@@ -92,6 +97,8 @@ public:
     struct KeyPose {
         int id;
         Pose2D pose;
+        Pose2D original;
+        Pose2D odom;
         PointCloudXYZ::Ptr cloud;
         double timestamp;
     };
@@ -127,8 +134,6 @@ public:
     using Slam2DPtr = std::shared_ptr<Slam2D>;
     Slam2DPtr slam;
 
-    int failure = -1;
-
     Pose2D correction;
 
   public: // Functions
@@ -146,7 +151,7 @@ public:
 
     Pose2D getPose() const;
 
-    FrequencyOccupancyMapPtr generateOccupancyMap();
+    FrequencyOccupancyMapPtr generateOccupancyMap(bool full = false);
 
     DynamicDistanceMapPtr generateCoarseDistanceMap();
 
@@ -160,6 +165,8 @@ public:
 
     /* double correlateCandidateScan(const Pose2D& candidate_pose, const PointCloudXYZ::Ptr& candidate_cloud, Pose2D& between); */
     double correlateCandidateScan(int refidx, int idx, Pose2D& between);
+
+    double coarseSearchAndCorrelateCandidateScan(int refidx, int candidate_id, Pose2D& between);
 
     void optimizePoseGraph();
 

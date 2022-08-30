@@ -72,3 +72,12 @@ double lama::CauchyWeight::value(const double& x)
     return (1.0 / (1.0 + x*x * c_));
 }
 
+lama::HuberWeight::HuberWeight(const double& k)
+    : k_(k)
+{}
+
+double lama::HuberWeight::value(const double& x)
+{
+    return (x < k_) ? 1.0 : (k_ / std::fabs(x));
+}
+

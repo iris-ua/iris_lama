@@ -69,6 +69,13 @@ struct CauchyWeight : public RobustCost {
     double c_;
 };
 
+struct HuberWeight : public RobustCost {
+    HuberWeight(const double& k);
+    double value(const double& x);
+
+    double k_;
+};
+
 } /* lama */
 
 

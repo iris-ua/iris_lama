@@ -146,6 +146,17 @@ bool lama::FrequencyOccupancyMap::isUnknown(const Vector3ui& coordinates) const
     return cell->visited == 0;
 }
 
+void lama::FrequencyOccupancyMap::prune()
+{
+    visit_all_cells([&](auto& coords){
+        frequency* cell = (frequency*) get(coords);
+        if (cell->visited == 1 and (cell->occupied == 0 or cell->occupied == 1)){
+            cell->visited  = 0;
+            cell->occupied = 0;
+        }
+    });
+}
+
 double lama::FrequencyOccupancyMap::getProbability(const Vector3d& coordinates) const
 {
     return getProbability(w2m(coordinates));

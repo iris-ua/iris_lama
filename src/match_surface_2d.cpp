@@ -89,6 +89,32 @@ void lama::MatchSurface2D::eval(VectorXd& residuals, MatrixXd* J)
     }// end for
 }
 
+double lama::MatchSurface2D::error()
+{
+    // Although we are working on a 2d plane the sensor is on a 3d plane.
+    // Thus, to use the data points from the sensor we have project them into the 2d
+    // plane of the moving frame and only then to the fixed 2d plane.
+    Affine3d moving_tf = Translation3d(scan_->sensor_origin_) * scan_->sensor_orientation_;
+
+    Vector3d trans; trans << state_.translation().x(),
+                             state_.translation().y(),
+                             0.0;
+    Affine3d fixed_tf = Translation3d(trans) * AngleAxisd(state_.so2().log(), Vector3d::UnitZ());
+
+    Affine3d tf = fixed_tf * moving_tf;
+
+    const size_t num_points = scan_->points.size();
+
+    Vector3ui hit;
+    VectorXd residuals(num_points);
+    for (size_t i = 0; i < num_points; ++i){
+        hit = surface_->w2m(tf * scan_->points[i]);
+        residuals[i] = surface_->distance(hit);
+    }// end for
+
+    return std::sqrt(residuals.squaredNorm() / (residuals.size()));
+}
+
 void lama::MatchSurface2D::update(const VectorXd& h)
 {
     // The state update in the manifold.

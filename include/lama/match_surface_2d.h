@@ -64,6 +64,11 @@ struct MatchSurface2D : public Problem {
     void eval(VectorXd& residuals, MatrixXd* J);
 
     /**
+     * Compute the root mean squared error.
+     */
+    double error();
+
+    /**
      * Update the internal state.
      *
      * @param[in] h Optimization step.

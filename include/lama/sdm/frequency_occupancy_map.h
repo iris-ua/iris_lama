@@ -71,6 +71,8 @@ public:
     double getProbability(const Vector3d& coordinates) const;
     double getProbability(const Vector3ui& coordinates) const;
 
+    void prune();
+
 protected:
 
     /**
