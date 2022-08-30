@@ -1,0 +1,18 @@
+# required by CMakePackageConfigHelpers
+# https://cmake.org/cmake/help/latest/module/CMakePackageConfigHelpers.html
+@PACKAGE_INIT@
+
+# forward the targets
+include(${CMAKE_CURRENT_LIST_DIR}/iris_lamaTargets.cmake)
+
+# define INCLUDE_DIRS and LIBRARIES, required for catkin_package
+set_and_check(iris_lama_INCLUDE_DIRS "@PACKAGE_INCLUDE_INSTALL_DIR@")
+set(iris_flama_LIBRARIES iris_lama::iris_lama)
+
+# forward dependencies AFTER expanding the @PACKAGE_<...>@ macros!!!
+# otherwise the expanded paths might point to a found package
+include(CMakeFindDependencyMacro)
+find_dependency(Eigen3 3.3 REQUIRED NO_MODULE)
+
+# labels the packages as found or not
+check_required_components(iris_lama)

@@ -33,8 +33,8 @@
 
 #include "lama/buffer_compressor.h"
 
-#include "extern/lz4/lz4.h"
-#include "extern/zstd/zstd.h"
+#include "lz4/lz4.h"
+#include "zstd/zstd.h"
 
 size_t lama::LZ4BufferCompressor::compress(const char* src, size_t src_size, char** dst, char* buffer)
 {

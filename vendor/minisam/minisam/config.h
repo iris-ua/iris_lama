@@ -14,7 +14,7 @@
 //#define MINISAM_WITH_MULTI_THREADS_NUM 4
 
 // enable internal timing
-//#define MINISAM_WITH_INTERNAL_TIMING
+#define MINISAM_WITH_INTERNAL_TIMING
 
 // Whether use Sophus
 #define MINISAM_USE_SOPHUS

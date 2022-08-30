@@ -55,7 +55,7 @@
 
 #include "lama/graph_slam2d.h"
 
-#include "extern/nanoflann/nanoflann.hpp"
+#include "nanoflann/nanoflann.hpp"
 
 template <typename Derived> struct KeyPosesNanoFlannAdaptor {
 

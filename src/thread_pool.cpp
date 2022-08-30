@@ -34,7 +34,7 @@
 #include <chrono>
 #include <thread>
 
-#include "extern/concurrentqueue.h"
+#include "moodycamel/concurrentqueue.h"
 #include "lama/thread_pool.h"
 
 namespace lama {
