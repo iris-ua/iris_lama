@@ -213,11 +213,13 @@ void lama::Map::computeRay(const Vector3ui& from, const Vector3ui& to, VectorVec
         // update errors
         error += delta;
 
-        for (int j = 0; j < 3; ++j)
-            if ( (error(j) << 1) >= n ){
-                coord(j) += step(j);
-                error(j) -= n;
-            }
+        for (int j = 0; j < 3; ++j){
+
+            // Avoid branches
+            Vector3l::Scalar flag = error(j) << 1 >= n;
+            coord(j) += step(j) * flag;
+            error(j) -= n * flag;
+        }
 
         // save the coordinate
         sink.push_back(coord.cast<uint32_t>() );
