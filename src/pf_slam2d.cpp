@@ -233,7 +233,7 @@ bool lama::PFSlam2D::update(const PointCloudXYZ::Ptr& surface, const Pose2D& odo
 
     const uint32_t num_particles = options_.particles;
     for (uint32_t i = 0; i < num_particles; ++i)
-        drawFromMotion(odelta, particles_[current_particle_set_][i].pose, particles_[current_particle_set_][i].pose);
+        drawFromMotion(odelta, particles_[current_particle_set_][i].pose);
 
     // only continue if the necessary motion was gathered.
     acc_trans_ += odelta.xy().norm();
@@ -362,24 +362,24 @@ lama::PFSlam2D::RobustCostPtr lama::PFSlam2D::makeRobust(const std::string& name
         return RobustCostPtr(new UnitWeight);
 }
 
-void lama::PFSlam2D::drawFromMotion(const Pose2D& delta, const Pose2D& old_pose, Pose2D& pose)
+void lama::PFSlam2D::drawFromMotion(const Pose2D& delta, Pose2D& pose)
 {
     double sigma, x, y, yaw;
-    double sxy = 0.3 * options_.srr;
+    double sxy = 0.3 * options_.stt;
 
-    sigma = options_.srr * std::fabs(delta.x())   +
+    sigma = options_.stt * std::fabs(delta.x())   +
             options_.str * std::fabs(delta.rotation()) +
             sxy * std::fabs(delta.y());
 
     x = delta.x() + random::normal(sigma);
 
-    sigma = options_.srr * std::fabs(delta.y())   +
+    sigma = options_.stt * std::fabs(delta.y())   +
             options_.str * std::fabs(delta.rotation()) +
             sxy * std::fabs(delta.x());
 
     y = delta.y() + random::normal(sigma);
 
-    sigma = options_.stt * std::fabs(delta.rotation()) +
+    sigma = options_.srr * std::fabs(delta.rotation()) +
             options_.srt * delta.xy().norm();
 
     yaw = delta.rotation() + random::normal(sigma);
