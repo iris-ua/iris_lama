@@ -337,13 +337,13 @@ protected:
     /**
      * Write internal parameters of the map.
      */
-    virtual void writeParameters(std::ofstream& stream) const
+    virtual void writeParameters(std::ofstream& ) const
     {}
 
     /**
      * Read internal parameters of the map.
      */
-    virtual void readParameters(std::ifstream& stream)
+    virtual void readParameters(std::ifstream& )
     {}
 
 

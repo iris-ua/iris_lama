@@ -107,7 +107,7 @@ lama::PFSlam2D::PFSlam2D(const Options& options)
     : options_(options)
 {
     solver_options_.max_iterations = options.max_iter;
-    solver_options_.strategy       = makeStrategy(options.strategy, Vector2d::Zero());
+    solver_options_.strategy       = makeStrategy(options.strategy);
     /* solver_options_.robust_cost    = makeRobust("cauchy", 0.25); */
     solver_options_.robust_cost.reset(new CauchyWeight(0.15));
 
@@ -341,7 +341,7 @@ void lama::PFSlam2D::saveOccImage(const std::string& name) const
     sdm::export_to_png(*particles_[current_particle_set_][pidx].occ, name);
 }
 
-lama::PFSlam2D::StrategyPtr lama::PFSlam2D::makeStrategy(const std::string& name, const VectorXd& parameters)
+lama::PFSlam2D::StrategyPtr lama::PFSlam2D::makeStrategy(const std::string& name)
 {
     if (name == "gn"){
         return StrategyPtr(new GaussNewton);
@@ -350,7 +350,7 @@ lama::PFSlam2D::StrategyPtr lama::PFSlam2D::makeStrategy(const std::string& name
     }
 }
 
-lama::PFSlam2D::RobustCostPtr lama::PFSlam2D::makeRobust(const std::string& name, const double& param)
+lama::PFSlam2D::RobustCostPtr lama::PFSlam2D::makeRobust(const std::string& name)
 {
     if (name == "cauchy")
         return RobustCostPtr(new CauchyWeight(0.25));

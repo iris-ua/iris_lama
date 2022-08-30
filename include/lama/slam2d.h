@@ -162,8 +162,8 @@ public:
 
 private:
 
-    StrategyPtr makeStrategy(const std::string& name, const VectorXd& parameters);
-    RobustCostPtr makeRobust(const std::string& name, const double& param);
+    StrategyPtr makeStrategy(const std::string& name);
+    RobustCostPtr makeRobust(const std::string& name);
 
     void updateMaps(const PointCloudXYZ::Ptr& cloud);
 

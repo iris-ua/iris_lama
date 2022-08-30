@@ -59,7 +59,7 @@ size_t lama::LZ4BufferCompressor::compress(const char* src, size_t src_size, cha
     return (size_t)compressed_size;
 }
 
-size_t lama::LZ4BufferCompressor::decompress(const char* src, size_t src_size, char** dst, size_t dst_size)
+size_t lama::LZ4BufferCompressor::decompress(const char* src, size_t , char** dst, size_t dst_size)
 {
     *dst = new char[dst_size];
 

@@ -46,6 +46,10 @@ struct Duration {
     // Nanoseconds should be enough for most applications.
     std::chrono::nanoseconds ns;
 
+    Duration(const Duration& other)
+        : ns(other.ns)
+    {}
+
     explicit Duration(double seconds)
         : ns((int64_t)(seconds*1.e9))
     {}
@@ -143,6 +147,10 @@ struct Time {
     // Time will be zero.
     Time() = default;
 
+    Time(const Time& other)
+        : duration(other.duration)
+    {}
+
     Time(const Duration& duration)
         : duration(duration)
     {}
@@ -194,15 +202,15 @@ struct Time {
     // Operations with time durations
     inline Time operator+(const Duration& rhs) const
     {
-        Time t = *this;
-        t.duration += rhs;
+        Time t;
+        t.duration = duration + rhs;
         return t;
     }
 
     inline Time operator-(const Duration& rhs) const
     {
-        Time t = *this;
-        t.duration -= rhs;
+        Time t;
+        t.duration = duration - rhs;
         return t;
     }
 };

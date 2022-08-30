@@ -75,13 +75,13 @@ protected:
     /**
      * Write internal parameters of the map.
      */
-    void writeParameters(std::ofstream& stream) const
+    void writeParameters(std::ofstream& ) const
     {}
 
     /**
      * Read internal parameters of the map.
      */
-    void readParameters(std::ifstream& stream)
+    void readParameters(std::ifstream& )
     {}
 
 private:

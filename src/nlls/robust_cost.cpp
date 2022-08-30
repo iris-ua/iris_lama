@@ -33,7 +33,7 @@
 
 #include "lama/nlls/robust_cost.h"
 
-double lama::UnitWeight::value(const double& x)
+double lama::UnitWeight::value(const double& )
 {
     return 1.0;
 }

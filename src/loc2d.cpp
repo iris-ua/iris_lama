@@ -66,7 +66,7 @@ void lama::Loc2D::Init(const Options& options)
 
     /* solver_options_.write_to_stdout= true; */
     solver_options_.max_iterations = options.max_iter;
-    solver_options_.strategy       = makeStrategy(options.strategy, Vector2d::Zero());
+    solver_options_.strategy       = makeStrategy(options.strategy);
     /* solver_options_.robust_cost    = makeRobust("cauchy", 0.25); */
     solver_options_.robust_cost.reset(new CauchyWeight(0.15));
 
@@ -123,7 +123,7 @@ bool lama::Loc2D::enoughMotion(const Pose2D& odometry)
     return true;
 }
 
-bool lama::Loc2D::update(const PointCloudXYZ::Ptr& surface, const Pose2D& odometry, double timestamp, bool force_update)
+bool lama::Loc2D::update(const PointCloudXYZ::Ptr& surface, const Pose2D& odometry, double , bool force_update)
 {
     if (not has_first_scan) {
         odom_ = odometry;
@@ -285,7 +285,7 @@ void lama::Loc2D::globalLocalization(const PointCloudXYZ::Ptr& surface)
 
 }
 
-lama::Loc2D::StrategyPtr lama::Loc2D::makeStrategy(const std::string& name, const VectorXd& parameters)
+lama::Loc2D::StrategyPtr lama::Loc2D::makeStrategy(const std::string& name)
 {
     if (name == "lm")
         return StrategyPtr(new LevenbergMarquard);
@@ -293,7 +293,7 @@ lama::Loc2D::StrategyPtr lama::Loc2D::makeStrategy(const std::string& name, cons
     return StrategyPtr(new GaussNewton);
 }
 
-lama::Loc2D::RobustCostPtr lama::Loc2D::makeRobust(const std::string& name, const double& param)
+lama::Loc2D::RobustCostPtr lama::Loc2D::makeRobust(const std::string& name)
 {
     if (name == "cauchy")
         return RobustCostPtr(new CauchyWeight(0.15));

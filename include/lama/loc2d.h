@@ -135,8 +135,8 @@ private:
 
     void globalLocalization(const PointCloudXYZ::Ptr& surface);
 
-    StrategyPtr makeStrategy(const std::string& name, const VectorXd& parameters);
-    RobustCostPtr makeRobust(const std::string& name, const double& param);
+    StrategyPtr makeStrategy(const std::string& name);
+    RobustCostPtr makeRobust(const std::string& name);
 
 private:
     SolverOptions solver_options_;

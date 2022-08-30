@@ -101,7 +101,7 @@ lama::Slam2D::Slam2D(const Options& options)
 
     /* solver_options_.write_to_stdout= true; */
     solver_options_.max_iterations = options.max_iter;
-    solver_options_.strategy       = makeStrategy(options.strategy, Vector2d::Zero());
+    solver_options_.strategy       = makeStrategy(options.strategy);
     /* solver_options_.robust_cost    = makeRobust("cauchy", 0.25); */
     solver_options_.robust_cost.reset(new CauchyWeight(0.15));
 
@@ -223,7 +223,7 @@ void lama::Slam2D::useCompression(bool compression, const std::string& algorithm
     occupancy_map_->useCompression(compression, 60, algorithm);
 }
 
-lama::Slam2D::StrategyPtr lama::Slam2D::makeStrategy(const std::string& name, const VectorXd& parameters)
+lama::Slam2D::StrategyPtr lama::Slam2D::makeStrategy(const std::string& name)
 {
     if (name == "lm"){
         return StrategyPtr(new LevenbergMarquard);
@@ -232,7 +232,7 @@ lama::Slam2D::StrategyPtr lama::Slam2D::makeStrategy(const std::string& name, co
     }
 }
 
-lama::Slam2D::RobustCostPtr lama::Slam2D::makeRobust(const std::string& name, const double& param)
+lama::Slam2D::RobustCostPtr lama::Slam2D::makeRobust(const std::string& name)
 {
     if (name == "cauchy")
         return RobustCostPtr(new CauchyWeight(0.25));
