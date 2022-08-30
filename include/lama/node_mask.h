@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <memory>
+
 #include <array>
 #include <cstdint>
 
@@ -80,9 +82,9 @@ public:
   const uint32_t WORD_COUNT;  // Number of 64 bit words
 
   /// @brief Initialize all bits to zero.
-  Mask(size_t log2dim)
+  Mask(size_t log2dim, bool is3d)
     : LOG2DIM(log2dim)
-    , SIZE(1U << (3 * LOG2DIM))
+    , SIZE(1U << ((2 + 1*is3d) * LOG2DIM))
     , WORD_COUNT(std::max(SIZE >> 6, 1u))
   {
     mWords = (WORD_COUNT <= 8) ? staticWords : new uint64_t[WORD_COUNT];
@@ -92,19 +94,6 @@ public:
       mWords[i] = 0;
     }
   }
-  Mask(size_t log2dim, bool on)
-    : LOG2DIM(log2dim)
-    , SIZE(1U << (3 * LOG2DIM))
-    , WORD_COUNT(std::max(SIZE >> 6, 1u))
-  {
-    mWords = (WORD_COUNT <= 8) ? staticWords : new uint64_t[WORD_COUNT];
-
-    const uint64_t v = on ? ~uint64_t(0) : uint64_t(0);
-    for (uint32_t i = 0; i < WORD_COUNT; ++i)
-    {
-      mWords[i] = v;
-    }
-  }
 
   /// @brief Copy constructor
   Mask(const Mask& other)
@@ -112,12 +101,13 @@ public:
     , SIZE(other.SIZE)
     , WORD_COUNT(other.WORD_COUNT)
   {
-    mWords = (WORD_COUNT <= 8) ? staticWords : new uint64_t[WORD_COUNT];
+    mWords = (WORD_COUNT <= 8) ? staticWords : static_cast<uint64_t*>(calloc(WORD_COUNT, sizeof(uint64_t) ));
+      //new uint64_t[WORD_COUNT];
 
-    for (uint32_t i = 0; i < WORD_COUNT; ++i)
-    {
-      mWords[i] = other.mWords[i];
-    }
+    /* for (uint32_t i = 0; i < WORD_COUNT; ++i) */
+    /* { */
+    /*   mWords[i] = other.mWords[i]; */
+    /* } */
   }
 
   Mask(Mask&& other)
@@ -143,7 +133,8 @@ public:
   {
     if (mWords && WORD_COUNT > 8)
     {
-      delete[] mWords;
+      free(static_cast<void*>(mWords));
+      /* delete[] mWords; */
     }
   }
 

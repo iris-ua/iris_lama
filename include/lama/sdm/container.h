@@ -59,7 +59,7 @@ struct Container {
     // This allows for faster iteration of the "known" cells.
     Mask mask;
 
-    Container(uint32_t log2dim);
+    Container(uint32_t log2dim, bool is3d);
     Container(const Container& other);
 
     virtual ~Container();

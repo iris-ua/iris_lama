@@ -36,8 +36,8 @@
 #include "lama/print.h"
 #include "lama/sdm/container.h"
 
-lama::Container::Container(uint32_t log2dim)
-    : mask(log2dim)
+lama::Container::Container(uint32_t log2dim, bool is3d)
+    : mask(log2dim, is3d)
 { }
 
 lama::Container::Container(const Container& other)
