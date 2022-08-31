@@ -49,6 +49,7 @@
 #include "lama/nlls/gauss_newton.h"
 #include "lama/nlls/solver.h"
 #include "lama/print.h"
+#include "lama/timer.h"
 
 #include "lama/sdm/dynamic_distance_map.h"
 #include "lama/sdm/export.h"
@@ -189,12 +190,10 @@ lama::GraphSlam2D::DynamicDistanceMapPtr lama::GraphSlam2D::generateCoarseDistan
 
 bool lama::GraphSlam2D::update(const PointCloudXYZ::Ptr &surface, const Pose2D &odometry, double timestamp)
 {
-    static auto transient_timer = sam::global_timer().getTimer("* Update/Transient Mapping");
+    ScopedTimer timer("GraphSlam2D.update");
 
     // 1. Update the transient slam
-    transient_timer->tic();
     auto did_update = slam->update(surface, odometry, timestamp);
-    transient_timer->toc();
     if (!did_update)
         return false;
 
@@ -243,16 +242,11 @@ bool lama::GraphSlam2D::update(const PointCloudXYZ::Ptr &surface, const Pose2D &
     keyid -= options.key_pose_head_delay;
     Pose2D &pose = key_poses[keyid].pose;
 
-    auto findloop_timer = sam::global_timer().getTimer("* Update/Find Loop Candidates ");
-    findloop_timer->tic();
     LoopClosureCandidates candidates = findLoopClosureCandidates(pose.xy(), radius);
-    findloop_timer->toc();
 
     static double factordist = 0.0;
     factordist += diff.xy().norm();
 
-    auto correlation_timer = sam::global_timer().getTimer("* Update/Correlation ");
-    correlation_timer->tic();
     Pose2D between;
     for (size_t i = 0; i < candidates.size(); ++i){
         auto& idx = candidates[i];
@@ -281,23 +275,19 @@ bool lama::GraphSlam2D::update(const PointCloudXYZ::Ptr &surface, const Pose2D &
         break;
     } // end for
 
-    correlation_timer->toc();
-
     if (factor_queue.empty() or (factor_queue.size() <= 5 and factordist <= 15.0))
         return true;
 
-    auto optimization_timer = sam::global_timer().getTimer("* Update/Optimization ");
-    optimization_timer->tic();
     optimizePoseGraph();
     factordist = 0.0;
-
-    optimization_timer->toc();
 
     return true;
 }
 
 lama::GraphSlam2D::LoopClosureCandidates lama::GraphSlam2D::findLoopClosureCandidates(const Vector2d &query, double radius)
 {
+    ScopedTimer timer("GraphSlam2D.findLoopClosureCandidates");
+
     KeyPosesNanoFlannAdaptor<KeyPoseList> key_poses_adaptor(key_poses, options.ignore_n_chain_poses);
     KDTree index(2, key_poses_adaptor, nanoflann::KDTreeSingleIndexAdaptorParams{10});
 
@@ -327,6 +317,8 @@ lama::GraphSlam2D::LoopClosureCandidates lama::GraphSlam2D::findLoopClosureCandi
 
 double lama::GraphSlam2D::correlateCandidateScan(int refidx, int candidate_id, Pose2D &between)
 {
+    ScopedTimer timer("GraphSlam2D.correlateCandidateScan");
+
     auto ref_pose = Pose2D(correction.state.inverse()) + key_poses[refidx].pose;
     auto candidate_pose = Pose2D(correction.state.inverse()) + key_poses[candidate_id].pose;
 
@@ -367,6 +359,8 @@ double lama::GraphSlam2D::correlateCandidateScan(int refidx, int candidate_id, P
 
 double lama::GraphSlam2D::coarseSearchAndCorrelateCandidateScan(int refidx, int candidate_id, Pose2D& between)
 {
+    ScopedTimer timer("GraphSlam2D.coarseSearchAndCorrelateCandidateScan");
+
     auto ref_pose = Pose2D(correction.state.inverse()) + key_poses[refidx].pose;
     auto candidate_pose = Pose2D(correction.state.inverse()) + key_poses[candidate_id].pose;
 
