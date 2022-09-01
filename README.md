@@ -80,3 +80,8 @@ For more information please read
 > **Fast Grid SLAM Based on Particle Filter with Scan Matching and Multithreading**\
 > 2020 IEEE International Conference on Autonomous Robot Systems and Competitions (ICARSC), Ponta Delgada, Portugal, 2020, pp. 194-199, doi: 10.1109/ICARSC49921.2020.9096191.
 
+Graph SLAM
+----------
+
+A really **fast** graph based solution.
+
