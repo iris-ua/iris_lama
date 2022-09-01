@@ -63,6 +63,17 @@ typedef std::deque<VectorXd, aligned_allocator<VectorXd>>  VectorVectorXd;
 
 }
 
+namespace std {
+template <>
+struct hash<Eigen::Vector3ui>
+{
+    std::size_t operator()(const Eigen::Vector3ui& coord) const
+    {   // same a OpenVDB
+        return ((1 << 20) - 1) & (coord(0) * 73856093 ^ coord(1) * 19349663 ^ coord(2) * 83492791);
+    }
+};
+}// namespace std
+
 namespace lama {
 
 template<class T>
