@@ -3,8 +3,6 @@
 
 #pragma once
 
-#include <memory>
-
 #include <array>
 #include <cstdint>
 
@@ -101,13 +99,12 @@ public:
     , SIZE(other.SIZE)
     , WORD_COUNT(other.WORD_COUNT)
   {
-    mWords = (WORD_COUNT <= 8) ? staticWords : static_cast<uint64_t*>(calloc(WORD_COUNT, sizeof(uint64_t) ));
-      //new uint64_t[WORD_COUNT];
+    mWords = (WORD_COUNT <= 8) ? staticWords : new uint64_t[WORD_COUNT];
 
-    /* for (uint32_t i = 0; i < WORD_COUNT; ++i) */
-    /* { */
-    /*   mWords[i] = other.mWords[i]; */
-    /* } */
+    for (uint32_t i = 0; i < WORD_COUNT; ++i)
+    {
+      mWords[i] = other.mWords[i];
+    }
   }
 
   Mask(Mask&& other)
@@ -133,8 +130,7 @@ public:
   {
     if (mWords && WORD_COUNT > 8)
     {
-      free(static_cast<void*>(mWords));
-      /* delete[] mWords; */
+      delete[] mWords;
     }
   }
 
