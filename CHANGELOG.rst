@@ -2,6 +2,10 @@
 Changelog for package iris_lama
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+1.3.1 (2022-09-02)
+------------------
+* Fix armhf compilation
+
 1.3.0 (2022-09-01)
 ------------------
 * Switch to plain cmake instead of a catkin based

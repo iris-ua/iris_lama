@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.5)
 project(iris_lama LANGUAGES CXX C)
 
-set(IRIS_LAMA_VERSION 1.3.0)
+set(IRIS_LAMA_VERSION 1.3.1)
 
 # provides default CMAKE_INSTALL_<dir> variables
 include(GNUInstallDirs)

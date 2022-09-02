@@ -2,7 +2,7 @@
 <package format="2">
 
     <name>iris_lama</name>
-    <version>1.3.0</version>
+    <version>1.3.1</version>
     <description>
         IRIS package for Localization and Mapping (LaMa).
         This packages includes the sparse-dense library for grid mapping,
