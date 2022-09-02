@@ -208,7 +208,7 @@ void lama::Loc2D::addSamplingCovariance(const PointCloudXYZ::Ptr& surface)
     Affine3d moving_tf = Translation3d(surface->sensor_origin_) * surface->sensor_orientation_;
 
     const size_t num_points = surface->points.size();
-    const size_t step = std::max(num_points / 100, 1ul);
+    const size_t step = std::max(num_points / 100, size_t(1));
 
     auto aa = AngleAxisd(pose_.rotation(), Vector3d::UnitZ());
     for (size_t i = 0; i < sampling_steps_.size(); ++i){

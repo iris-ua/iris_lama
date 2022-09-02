@@ -60,6 +60,10 @@ target_include_directories(iris_lama
 target_compile_features(iris_lama PUBLIC cxx_std_14)
 target_compile_options(iris_lama PRIVATE -Wall -Wextra)
 
+if (${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm")
+    target_compile_options(iris_lama PRIVATE -faligned-new)
+endif()
+
 target_link_libraries(iris_lama PUBLIC pthread Eigen3::Eigen)
 target_include_directories(iris_lama PRIVATE extern/minisam)
 

@@ -34,7 +34,7 @@
 #include "lama/sdm/simple_occupancy_map.h"
 
 lama::SimpleOccupancyMap::SimpleOccupancyMap(double resolution, uint32_t patch_size, bool is3d)
-    : OccupancyMap(resolution, sizeof(char), patch_size, is3d)
+    : OccupancyMap(resolution, sizeof(int8_t), patch_size, is3d)
 {}
 
 lama::SimpleOccupancyMap::SimpleOccupancyMap(const SimpleOccupancyMap& other)
@@ -51,7 +51,7 @@ bool lama::SimpleOccupancyMap::setFree(const Vector3d& coordinates)
 
 bool lama::SimpleOccupancyMap::setFree(const Vector3ui& coordinates)
 {
-    char* cell = (char*) get(coordinates);
+    int8_t* cell = (int8_t*) get(coordinates);
     if (*cell == -1)
         return false;
 
@@ -66,7 +66,7 @@ bool lama::SimpleOccupancyMap::setOccupied(const Vector3d& coordinates)
 
 bool lama::SimpleOccupancyMap::setOccupied(const Vector3ui& coordinates)
 {
-    char* cell = (char*) get(coordinates);
+    int8_t* cell = (int8_t*) get(coordinates);
     if (*cell == 1)
         return false;
 
@@ -81,7 +81,7 @@ bool lama::SimpleOccupancyMap::setUnknown(const Vector3d& coordinates)
 
 bool lama::SimpleOccupancyMap::setUnknown(const Vector3ui& coordinates)
 {
-    char* cell = (char*) get(coordinates);
+    int8_t* cell = (int8_t*) get(coordinates);
     if ( *cell == 0 )
         return false;
 
@@ -96,7 +96,7 @@ bool lama::SimpleOccupancyMap::isFree(const Vector3d& coordinates) const
 
 bool lama::SimpleOccupancyMap::isFree(const Vector3ui& coordinates) const
 {
-    const char* cell = (const char*) get(coordinates);
+    const int8_t* cell = (const int8_t*) get(coordinates);
     if (cell == 0)
         return false;
 
@@ -110,7 +110,7 @@ bool lama::SimpleOccupancyMap::isOccupied(const Vector3d& coordinates) const
 
 bool lama::SimpleOccupancyMap::isOccupied(const Vector3ui& coordinates) const
 {
-    const char* cell = (const char*) get(coordinates);
+    const int8_t* cell = (const int8_t*) get(coordinates);
     if (cell == 0)
         return false;
 
@@ -124,7 +124,7 @@ bool lama::SimpleOccupancyMap::isUnknown(const Vector3d& coordinates) const
 
 bool lama::SimpleOccupancyMap::isUnknown(const Vector3ui& coordinates) const
 {
-    const char* cell = (const char*) get(coordinates);
+    const int8_t* cell = (const int8_t*) get(coordinates);
     if (cell == 0) return true;
 
     return *cell == 0;
@@ -137,7 +137,7 @@ double lama::SimpleOccupancyMap::getProbability(const Vector3d& coordinates) con
 
 double lama::SimpleOccupancyMap::getProbability(const Vector3ui& coordinates) const
 {
-    const char* cell = (const char*) get(coordinates);
+    const int8_t* cell = (const int8_t*) get(coordinates);
     if (cell == 0) return 0.5;
 
     switch(*cell){
