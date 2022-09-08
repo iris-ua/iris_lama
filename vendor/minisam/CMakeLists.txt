@@ -25,4 +25,4 @@ set(minisam_SRC
 )
 
 add_library(minisam OBJECT ${minisam_SRC})
-target_link_libraries(minisam PRIVATE Eigen3::Eigen)
+target_include_directories(minisam PRIVATE ${EIGEN3_INCLUDE_DIR})

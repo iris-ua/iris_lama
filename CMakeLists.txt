@@ -17,13 +17,6 @@ find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 # the code
 add_subdirectory(src)
 
-# libs and binaries, generate export targets
-install(TARGETS iris_lama
-  EXPORT ${CMAKE_PROJECT_NAME}Targets
-  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-
 # header files, note the "/" after include
 install(DIRECTORY include/
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})

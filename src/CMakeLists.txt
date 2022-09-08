@@ -67,3 +67,9 @@ endif()
 target_link_libraries(iris_lama PUBLIC pthread Eigen3::Eigen)
 target_include_directories(iris_lama PRIVATE extern/minisam)
 
+# libs and binaries, generate export targets
+install(TARGETS iris_lama
+  EXPORT ${CMAKE_PROJECT_NAME}Targets
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
