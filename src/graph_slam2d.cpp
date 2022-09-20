@@ -146,19 +146,16 @@ lama::GraphSlam2D::FrequencyOccupancyMapPtr lama::GraphSlam2D::generateOccupancy
         Vector3ui so = occ->w2m(tf.translation());
 
         // 2. Free positions
-        VectorVector3ui free;
-
         for (auto &point : cloud->points) {
             Vector3d hit = tf * point;
             occ->setOccupied(hit);
 
             if (full)
-                occ->computeRay(so, occ->w2m(hit), free);
+                occ->computeRay(so, occ->w2m(hit),
+                [this](const Vector3ui& coord){
+                    occ->setFree(coord);
+                });
         } // end for points
-
-        for (auto &point : free)
-            occ->setFree(point);
-
     } // end for
 
     occ->prune();

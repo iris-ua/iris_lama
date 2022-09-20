@@ -259,7 +259,6 @@ void lama::Slam2D::updateMaps(const PointCloudXYZ::Ptr& surface)
     Affine3d tf = fixed_tf * moving_tf;
 
     // 2. generate the free and occupied positions.
-    VectorVector3ui free;
 
     // This will be used to calculate the surface AABB.
     Vector3d min, max;
@@ -311,13 +310,11 @@ void lama::Slam2D::updateMaps(const PointCloudXYZ::Ptr& surface)
             if ( changed ) distance_map_->addObstacle(mhit);
         }
 
-        occupancy_map_->computeRay(occupancy_map_->w2m(start), mhit, free);
-    }
-
-    const size_t num_free = free.size();
-    for (size_t i = 0; i < num_free; ++i){
-        bool changed = occupancy_map_->setFree(free[i]);
-        if ( changed ) distance_map_->removeObstacle(free[i]);
+        occupancy_map_->computeRay(occupancy_map_->w2m(start), mhit,
+        [this](const Vector3ui& coord){
+            bool changed = occupancy_map_->setFree(coord);
+            if ( changed ) distance_map_->removeObstacle(coord);
+        });
     }
 
     // 3. Update the distance map

@@ -497,13 +497,11 @@ void lama::PFSlam2D::updateParticleMaps(Particle* particle)
             if ( changed ) particle->dm->addObstacle(mhit);
         }
 
-        particle->occ->computeRay(particle->occ->w2m(start), mhit, free);
-    }
-
-    const size_t num_free = free.size();
-    for (size_t i = 0; i < num_free; ++i){
-        bool changed = particle->occ->setFree(free[i]);
-        if ( changed ) particle->dm->removeObstacle(free[i]);
+        particle->occ->computeRay(particle->occ->w2m(start), mhit,
+        [&particle](const Vector3ui& coord){
+            bool changed = particle->occ->setFree(coord);
+            if ( changed ) particle->dm->removeObstacle(coord);
+        });
     }
 
     // 3. Update the distance map

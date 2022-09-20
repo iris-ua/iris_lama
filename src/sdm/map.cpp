@@ -195,6 +195,37 @@ void lama::Map::useCompression(bool compression, uint32_t lru_size, const std::s
 
 }
 
+void lama::Map::computeRay(const Vector3ui& from, const Vector3ui& to, const RayCallback& callback)
+{
+    if ( from == to ) return;
+
+    Vector3l error = Vector3l::Zero();
+    Vector3l coord = from.cast<int64_t>();
+    Vector3l delta = to.cast<int64_t>() - coord;
+
+    Vector3l step = (delta.array() < 0).select(-1, Vector3l::Ones());
+
+    delta = delta.array().abs();
+    int n = delta.maxCoeff();
+
+    // maximum change of any coordinate
+    for (int i = 0; i < n-1; ++i){
+        // update errors
+        error += delta;
+
+        for (int j = 0; j < 3; ++j){
+            if ((error(j) << 1) < n)
+                continue;
+
+            coord(j) += step(j);
+            error(j) -= n;
+        }
+
+        // save the coordinate
+        callback(coord.cast<uint32_t>() );
+    }
+}
+
 void lama::Map::computeRay(const Vector3ui& from, const Vector3ui& to, VectorVector3ui& sink)
 {
     if ( from == to ) return;
