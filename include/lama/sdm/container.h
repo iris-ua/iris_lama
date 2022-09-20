@@ -35,7 +35,6 @@
 
 #include "lama/types.h"
 #include "lama/buffer_compressor.h"
-#include "lama/node_mask.h"
 
 namespace lama {
 
@@ -57,7 +56,11 @@ struct Container {
 
     // Bitmask that keeps tracking of the cells that were access.
     // This allows for faster iteration of the "known" cells.
-    Mask mask;
+    uint64_t* mask = nullptr;
+
+    const uint32_t NBITS;
+    const uint32_t SIZE;
+    const uint32_t WORD_COUNT;
 
     Container(uint32_t log2dim, bool is3d);
     Container(const Container& other);
@@ -73,7 +76,7 @@ struct Container {
     // The allocated memory is set to zero. The `calloc` function is used
     // for this purpose. [Hopefully] copy-on-write is used to zero out the memory.
     // Return true on success.
-    bool alloc(uint32_t size, uint32_t size_of_element);
+    bool alloc(uint32_t size_of_element);
 
     /**
      *
@@ -98,7 +101,7 @@ struct Container {
 
     inline uint8_t* get(uint32_t idx)
     {
-        if (!mask.isOn(idx)) mask.setOn(idx);
+        if (!is_on(idx)) set_on(idx);
         return (data + idx * element_size);
     }
 
@@ -115,9 +118,38 @@ struct Container {
 
     inline const uint8_t* get(uint32_t idx) const
     {
-        if (!mask.isOn(idx)) return nullptr;
+        if (!is_on(idx)) return nullptr;
         return (data + idx * element_size);
     }
+
+    // Bitmask access and manipulation.
+    // This is based on OpenVDB's NodeMasks.h
+    // https://github.com/AcademySoftwareFoundation/openvdb/blob/master/openvdb/openvdb/util/NodeMasks.h
+    bool is_on(uint32_t index) const;
+    bool set_on(uint32_t index);
+    void set_off(uint32_t index);
+
+    uint32_t find_first_on() const;
+    uint32_t find_next_on(uint32_t start) const;
+
+    uint32_t count_on() const;
+
+    // A simple iterator
+    struct Iterator {
+        uint32_t pos;
+        const Container* parent;
+
+        Iterator(uint32_t pos, const Container* parent);
+
+        Iterator& operator =(const Iterator&) = default;
+        Iterator& operator++();
+
+        uint32_t operator*() const;
+        operator bool() const;
+    };
+
+    Iterator begin_on() const;
+
 
     bool compress(BufferCompressor* bc, char* buffer);
     bool decompress(BufferCompressor* bc);
@@ -128,6 +160,115 @@ struct Container {
     void write(BufferCompressor* bc, std::ofstream& stream) const;
     void read(std::ifstream& stream);
 };
+
+// Inline implementations
+
+//==============
+inline bool Container::is_on(uint32_t index) const
+{ return 0 != (mask[index >> 6] & (uint64_t(1) << (index & 63))); }
+
+//==============
+inline bool Container::set_on(uint32_t index)
+{
+    uint64_t& word = mask[index >> 6];
+    const uint64_t bit = (uint64_t(1) << (index & 63));
+    bool was_on = word & bit;
+    word |= bit;
+
+    return was_on;
+}
+
+//==============
+inline void Container::set_off(uint32_t index)
+{ mask[index >> 6] &= ~(uint64_t(1) << (index & 63)); }
+
+
+//==============
+inline uint32_t Container::find_first_on() const
+{
+    uint32_t n = 0;
+    while (n < WORD_COUNT && !mask[n])
+        ++n;
+
+    if (n == WORD_COUNT)
+        return SIZE;
+
+    // find lowest on
+#if (defined(__GNUC__) || defined(__clang__))
+    uint32_t lowest = static_cast<uint32_t>(__builtin_ctzll(mask[n]));
+#else
+    uint32_t lowest = 0;
+    while (lowest < SIZE && !is_on(n + lowest))
+        lowest++;
+#endif
+    return (n << 6) + lowest;
+}
+
+//==============
+inline uint32_t Container::find_next_on(uint32_t start) const
+{
+    uint32_t n = start >> 6;  // initiate
+    if (n >= WORD_COUNT)
+      return SIZE;
+
+    uint32_t m = start & 63;
+    uint64_t b = mask[n];
+    if (b & (uint64_t(1) << m))
+      return start;  // simple case: start is on
+
+    b &= ~uint64_t(0) << m;  // mask out lower bits
+    while (!b && ++n < WORD_COUNT)
+      b = mask[n];
+
+    if (!b) return SIZE;
+
+    // find lowest on
+#if (defined(__GNUC__) || defined(__clang__))
+    uint32_t lowest = static_cast<uint32_t>(__builtin_ctzll(b));
+#else
+    uint32_t lowest = 0;
+    while (lowest < SIZE && !is_on(n + lowest))
+        lowest++;
+#endif
+    return (n << 6) + lowest;
+}
+
+//==============
+inline uint32_t Container::count_on() const
+{
+    uint32_t sum = 0;
+
+#if (defined(__GNUC__) || defined(__clang__))
+    for (uint32_t i = 0; i < WORD_COUNT; ++i)
+        sum += static_cast<uint32_t>(__builtin_popcountll(mask[i]));
+#else
+    for (uint32_t i = 0; i < SIZE; ++i)
+        sum += (uint32_t)is_on(i);
+#endif
+
+    return sum;
+}
+
+//==============
+inline typename Container::Iterator Container::begin_on() const
+{ return Iterator(find_first_on(), this); }
+
+//==============
+inline Container::Iterator::Iterator(uint32_t pos, const Container* parent)
+    : pos(pos), parent(parent)
+{}
+
+//==============
+inline typename Container::Iterator& Container::Iterator::operator++()
+{ pos = parent->find_next_on(pos+1); return *this; }
+
+//==============
+inline uint32_t Container::Iterator::operator*() const
+{ return pos; }
+
+//==============
+inline Container::Iterator::operator bool() const
+{ return pos != parent->SIZE; }
 
 } /* lama */
 

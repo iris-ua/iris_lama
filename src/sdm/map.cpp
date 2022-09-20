@@ -353,7 +353,7 @@ void lama::Map::visit_all_cells(const CellWalker& walker) const
 {
     for (auto& it : patches){
         Vector3ui anchor = p2m(it.first);
-        for (auto cell = it.second->mask.beginOn(); cell; ++cell)
+        for (auto cell = it.second->begin_on(); cell; ++cell)
             walker(anchor + c2m(*cell));
     }// end for_all
 }
@@ -382,7 +382,7 @@ uint8_t* lama::Map::get(const Vector3ui& coordinates)
             if (it == patches.end()){
                 // first time reference
                 it = patches.insert(std::make_pair(idx, COWPtr< Container >(new Container(log2dim, is_3d))) ).first;
-                it->second->alloc(patch_volume, cell_memory_size);
+                it->second->alloc(cell_memory_size);
 
                 p = &(it->second);
                 cache_miss_--; // a brand new patch is not a cache miss
@@ -401,7 +401,7 @@ uint8_t* lama::Map::get(const Vector3ui& coordinates)
         auto it = patches.find(idx);
         if (it == patches.end()){
             it = patches.insert(std::make_pair(idx, COWPtr< Container >(new Container(log2dim, is_3d))) ).first;
-            it->second->alloc(patch_volume, cell_memory_size);
+            it->second->alloc(cell_memory_size);
         }
 
         prev_idx_ = idx;
@@ -567,7 +567,7 @@ bool lama::Map::read(const std::string& filename)
         if (not f) return false; // eof? happens when the file struture is wrong
 
         auto it = patches.insert(std::make_pair(idx, COWPtr< Container >(new Container(log2dim, is_3d))) ).first;
-        it->second->alloc(patch_volume, cell_memory_size);
+        it->second->alloc(cell_memory_size);
         it->second->read(f);
     }// end for
 
