@@ -237,19 +237,19 @@ void lama::Map::computeRay(const Vector3ui& from, const Vector3ui& to, VectorVec
     Vector3l step = (delta.array() < 0).select(-1, Vector3l::Ones());
 
     delta = delta.array().abs();
-    int n = delta.maxCoeff() - 1;
+    int n = delta.maxCoeff();
 
     // maximum change of any coordinate
-    for (int i = 0; i < n; ++i){
+    for (int i = 0; i < n-1; ++i){
         // update errors
         error += delta;
 
         for (int j = 0; j < 3; ++j){
+            if ((error(j) << 1) < n)
+                continue;
 
-            // Avoid branches
-            Vector3l::Scalar flag = error(j) << 1 >= n;
-            coord(j) += step(j) * flag;
-            error(j) -= n * flag;
+            coord(j) += step(j);
+            error(j) -= n;
         }
 
         // save the coordinate
