@@ -13,6 +13,7 @@ set(lama_SOURCES
     random.cpp
     slam2d.cpp
     thread_pool.cpp
+    simple_pgo.cpp
 
     # Non-Linear Least Squares Optimization
     nlls/gauss_newton.cpp
