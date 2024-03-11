@@ -5,6 +5,7 @@ set(lama_SOURCES
     graph_slam2d.cpp
     image_io.cpp
     loc2d.cpp
+    lidar_odometry_2d.cpp
     match_surface_2d.cpp
     pf_slam2d.cpp
     print.cpp
